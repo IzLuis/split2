@@ -95,7 +95,6 @@ export async function getGroupMembers(
       role,
       invited_at,
       accepted_at,
-      left_at,
       profiles!group_members_user_id_fkey (
         full_name,
         email
