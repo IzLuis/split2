@@ -2,25 +2,94 @@
 
 :root {
   --background: #ffffff;
-  --foreground: #171717;
+  --foreground: #0f172a;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans: "Avenir Next", "Nunito Sans", "Segoe UI", sans-serif;
+  --font-mono: "SFMono-Regular", Menlo, monospace;
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: "Avenir Next", "Nunito Sans", "Segoe UI", sans-serif;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .animate-enter {
+    animation: enter-fade 0.35s ease both;
+  }
+
+  .hover-lift {
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+  }
+
+  .hover-lift:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 24px -18px rgba(15, 23, 42, 0.45);
+  }
+
+  .event-accordion__chevron {
+    transition: transform 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .event-accordion__content {
+    display: grid;
+    grid-template-rows: 0fr;
+    opacity: 0;
+    pointer-events: none;
+    transition:
+      grid-template-rows 0.34s cubic-bezier(0.22, 1, 0.36, 1),
+      opacity 0.24s ease-out,
+      filter 0.24s ease-out;
+    filter: blur(1.5px);
+  }
+
+  .event-accordion__inner {
+    overflow: hidden;
+    transform: translateY(-4px);
+    transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .event-accordion[open] .event-accordion__chevron {
+    transform: rotate(180deg);
+  }
+
+  .event-accordion[open] .event-accordion__content {
+    grid-template-rows: 1fr;
+    opacity: 1;
+    pointer-events: auto;
+    filter: blur(0);
+  }
+
+  .event-accordion[open] .event-accordion__inner {
+    transform: translateY(0);
+  }
+}
+
+.event-accordion > summary {
+  list-style: none;
+}
+
+.event-accordion > summary::-webkit-details-marker {
+  display: none;
+}
+
+/* Keep content renderable when closed so open/close transitions run every toggle. */
+.event-accordion:not([open]) > .event-accordion__content {
+  display: grid;
+}
+
+@keyframes enter-fade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
