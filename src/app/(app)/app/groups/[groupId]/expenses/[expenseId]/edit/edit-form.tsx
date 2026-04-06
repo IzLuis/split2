@@ -26,10 +26,12 @@ function MemberRow({
   member,
   splitType,
   values,
+  locale,
 }: {
   member: GroupMember;
   splitType: SplitType;
   values: EditExpenseFormState['values'];
+  locale: Locale;
 }) {
   const participantState = values.participants[member.user_id];
 
@@ -41,7 +43,7 @@ function MemberRow({
           name={`participant_${member.user_id}_included`}
           defaultChecked={participantState?.included ?? false}
         />
-        {member.profiles?.full_name || member.profiles?.email || 'Unknown'}
+        {member.profiles?.full_name || member.profiles?.email || tx(locale, 'Unknown', 'Desconocido')}
       </label>
       <input
         name={`participant_${member.user_id}_amount`}
@@ -49,7 +51,7 @@ function MemberRow({
         type="number"
         min="0"
         step="0.01"
-        placeholder="Custom amount"
+        placeholder={tx(locale, 'Custom amount', 'Monto personalizado')}
         disabled={splitType !== 'custom'}
         className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-100"
       />
@@ -59,7 +61,7 @@ function MemberRow({
         type="number"
         min="0"
         step="0.001"
-        placeholder="%"
+        placeholder={tx(locale, '%', '%')}
         disabled={splitType !== 'percentage'}
         className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-100"
       />
@@ -281,7 +283,7 @@ export function EditExpenseForm({
 
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-slate-700">Subtotal amount</span>
+            <span className="text-sm font-medium text-slate-700">{tx(locale, 'Subtotal amount', 'Monto subtotal')}</span>
             <input
               name="amount"
               required={!isItemized}
@@ -293,12 +295,18 @@ export function EditExpenseForm({
               className="w-full rounded-md border border-slate-300 px-3 py-2 disabled:bg-slate-100"
             />
             {isItemized ? (
-              <p className="text-xs text-slate-500">For itemized expenses, subtotal is calculated from line items.</p>
+              <p className="text-xs text-slate-500">
+                {tx(
+                  locale,
+                  'For itemized expenses, subtotal is calculated from line items.',
+                  'Para gastos itemizados, el subtotal se calcula a partir de los artículos.',
+                )}
+              </p>
             ) : null}
           </label>
 
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-slate-700">Tip %</span>
+            <span className="text-sm font-medium text-slate-700">{tx(locale, 'Tip %', 'Propina %')}</span>
             <input
               name="tipPercentage"
               defaultValue={state.values.tipPercentage}
@@ -310,7 +318,7 @@ export function EditExpenseForm({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-slate-700">Delivery fee</span>
+            <span className="text-sm font-medium text-slate-700">{tx(locale, 'Delivery fee', 'Cargo de envío')}</span>
             <input
               name="deliveryFee"
               defaultValue={state.values.deliveryFee}
@@ -322,12 +330,12 @@ export function EditExpenseForm({
           </label>
 
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-slate-700">Currency</span>
+            <span className="text-sm font-medium text-slate-700">{tx(locale, 'Currency', 'Moneda')}</span>
             <input name="currency" required defaultValue={state.values.currency} maxLength={3} className="w-full rounded-md border border-slate-300 px-3 py-2 uppercase" />
           </label>
 
           <label className="block space-y-1">
-            <span className="text-sm font-medium text-slate-700">Date</span>
+            <span className="text-sm font-medium text-slate-700">{tx(locale, 'Date', 'Fecha')}</span>
             <input name="expenseDate" required defaultValue={state.values.expenseDate} type="date" className="w-full rounded-md border border-slate-300 px-3 py-2" />
           </label>
         </div>
@@ -337,7 +345,7 @@ export function EditExpenseForm({
           <select name="paidBy" required defaultValue={state.values.paidBy} className="w-full rounded-md border border-slate-300 px-3 py-2">
             {members.map((member) => (
               <option key={member.user_id} value={member.user_id}>
-                {member.profiles?.full_name || member.profiles?.email || 'Unknown'}
+                {member.profiles?.full_name || member.profiles?.email || tx(locale, 'Unknown', 'Desconocido')}
               </option>
             ))}
           </select>
@@ -346,14 +354,14 @@ export function EditExpenseForm({
         {isItemized ? (
           <section className="space-y-3 rounded-lg border border-slate-200 p-3">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-medium text-slate-700">Receipt line items</p>
+              <p className="text-sm font-medium text-slate-700">{tx(locale, 'Receipt line items', 'Artículos del ticket')}</p>
               <div className="flex gap-2">
                 <button
                   type="button"
                   onClick={() => setItemRowCount((count) => count + 1)}
                   className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
                 >
-                  Add item
+                  {tx(locale, 'Add item', 'Agregar artículo')}
                 </button>
                 {itemRowCount > 1 ? (
                   <button
@@ -361,7 +369,7 @@ export function EditExpenseForm({
                     onClick={() => setItemRowCount((count) => Math.max(1, count - 1))}
                     className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 hover:bg-slate-100"
                   >
-                    Remove last
+                    {tx(locale, 'Remove last', 'Quitar último')}
                   </button>
                 ) : null}
               </div>
@@ -378,7 +386,7 @@ export function EditExpenseForm({
                       <input
                         name={`item_${index}_name`}
                         defaultValue={item.name}
-                        placeholder="Item name"
+                        placeholder={tx(locale, 'Item name', 'Nombre del artículo')}
                         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                       />
                       <input
@@ -387,7 +395,7 @@ export function EditExpenseForm({
                         type="number"
                         min="0.01"
                         step="0.01"
-                        placeholder="Unit price"
+                        placeholder={tx(locale, 'Unit price', 'Precio unitario')}
                         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                       />
                       <input
@@ -396,7 +404,7 @@ export function EditExpenseForm({
                         type="number"
                         min="1"
                         step="1"
-                        placeholder="Quantity"
+                        placeholder={tx(locale, 'Quantity', 'Cantidad')}
                         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                       />
                     </div>
@@ -408,21 +416,24 @@ export function EditExpenseForm({
                           type="checkbox"
                           defaultChecked={item.isShared}
                         />
-                        Shared item
+                        {tx(locale, 'Shared item', 'Artículo compartido')}
                       </label>
                       <input
                         name={`item_${index}_notes`}
                         defaultValue={item.notes}
-                        placeholder="Notes (optional)"
+                        placeholder={tx(locale, 'Notes (optional)', 'Notas (opcional)')}
                         className="rounded-md border border-slate-300 px-3 py-2 text-sm"
                       />
                     </div>
 
                     <div className="space-y-1">
-                      <p className="text-xs font-medium text-slate-600">Pre-assign users (optional)</p>
+                      <p className="text-xs font-medium text-slate-600">{tx(locale, 'Pre-assign users (optional)', 'Preasignar usuarios (opcional)')}</p>
                       <div className="grid gap-2 sm:grid-cols-2">
                         {members.map((member) => {
-                          const label = member.profiles?.full_name || member.profiles?.email || 'Unknown';
+                          const label =
+                            member.profiles?.full_name
+                            || member.profiles?.email
+                            || tx(locale, 'Unknown', 'Desconocido');
                           const checked = item.assigneeUserIds.includes(member.user_id);
                           return (
                             <label key={`${index}-${member.user_id}`} className="inline-flex items-center gap-2 text-xs text-slate-700">
@@ -437,7 +448,11 @@ export function EditExpenseForm({
                         })}
                       </div>
                       <p className="text-xs text-slate-500">
-                        Non-shared items allow one assignee. Shared items split equally across selected assignees.
+                        {tx(
+                          locale,
+                          'Non-shared items allow one assignee. Shared items split equally across selected assignees.',
+                          'Los artículos no compartidos permiten un solo asignado. Los compartidos se dividen en partes iguales entre los asignados.',
+                        )}
                       </p>
                     </div>
                   </div>
@@ -448,23 +463,23 @@ export function EditExpenseForm({
         ) : (
           <>
             <label className="block space-y-1">
-              <span className="text-sm font-medium text-slate-700">Split type</span>
+              <span className="text-sm font-medium text-slate-700">{tx(locale, 'Split type', 'Tipo de división')}</span>
               <select
                 name="splitType"
                 value={splitType}
                 onChange={(event) => setSplitType(event.target.value as SplitType)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2"
               >
-                <option value="equal">Equal</option>
-                <option value="custom">Custom amounts</option>
-                <option value="percentage">Percentages</option>
+                <option value="equal">{tx(locale, 'Equal', 'Igual')}</option>
+                <option value="custom">{tx(locale, 'Custom amounts', 'Montos personalizados')}</option>
+                <option value="percentage">{tx(locale, 'Percentages', 'Porcentajes')}</option>
               </select>
             </label>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium text-slate-700">Participants</p>
+              <p className="text-sm font-medium text-slate-700">{tx(locale, 'Participants', 'Participantes')}</p>
               {members.map((member) => (
-                <MemberRow key={member.user_id} member={member} splitType={splitType} values={state.values} />
+                <MemberRow key={member.user_id} member={member} splitType={splitType} values={state.values} locale={locale} />
               ))}
             </div>
           </>

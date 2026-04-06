@@ -1,8 +1,10 @@
 import { ensureProfileAndClient } from '@/lib/auth';
+import { getRequestLocale } from '@/lib/i18n/server';
 import type { ProfileFormState } from './actions';
 import { ProfileForm } from './profile-form';
 
 export default async function ProfilePage() {
+  const locale = await getRequestLocale();
   const { user, supabase } = await ensureProfileAndClient();
 
   const { data: profile, error } = await supabase
@@ -24,6 +26,5 @@ export default async function ProfilePage() {
     },
   };
 
-  return <ProfileForm initialState={initialState} email={user.email ?? ''} />;
+  return <ProfileForm initialState={initialState} email={user.email ?? ''} locale={locale} />;
 }
-

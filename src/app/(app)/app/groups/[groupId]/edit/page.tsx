@@ -1,6 +1,7 @@
 import { ensureProfileAndClient } from '@/lib/auth';
 import { getFriendProfiles, type FriendProfile } from '@/lib/friends';
 import { getGroup, getGroupMembers } from '@/lib/group-data';
+import { getRequestLocale } from '@/lib/i18n/server';
 import { redirect } from 'next/navigation';
 import { EditGroupForm } from './edit-form';
 import { updateGroupAction, type EditGroupFormState } from './actions';
@@ -10,6 +11,7 @@ export default async function EditGroupPage({
 }: {
   params: Promise<{ groupId: string }>;
 }) {
+  const locale = await getRequestLocale();
   const { groupId } = await params;
   const { user, supabase } = await ensureProfileAndClient();
 
@@ -73,6 +75,7 @@ export default async function EditGroupPage({
       updateAction={boundUpdate}
       initialState={initialState}
       availableProfiles={availableProfiles}
+      locale={locale}
     />
   );
 }
