@@ -118,6 +118,25 @@ export default async function ExpenseDetailPage({
       : unassignedFromParticipants <= 0
         ? 'fully_assigned'
         : 'partially_assigned';
+  const splitTypeLabel = (() => {
+    switch (expense.split_type) {
+      case 'equal':
+        return tx(locale, 'Equal', 'Igual');
+      case 'custom':
+        return tx(locale, 'Custom', 'Personalizado');
+      case 'percentage':
+        return tx(locale, 'Percentage', 'Porcentaje');
+      default:
+        return expense.split_type;
+    }
+  })();
+  const itemizedStatusLabels = {
+    not_itemized: tx(locale, 'Not itemized', 'No itemizado'),
+    open: tx(locale, 'Open', 'Abierto'),
+    partially_assigned: tx(locale, 'Partially assigned', 'Parcialmente asignado'),
+    fully_assigned: tx(locale, 'Fully assigned', 'Completamente asignado'),
+  } as const;
+  const itemizedStatusLabel = itemizedStatusLabels[derivedItemizationStatus];
   const items = ((expense.items as Array<{
     id: string;
     name: string;
@@ -191,7 +210,7 @@ export default async function ExpenseDetailPage({
           ) : null}
           <p className="text-sm">
             <span className="text-slate-500">{tx(locale, 'Date', 'Fecha')}:</span>{' '}
-            <span className="font-medium text-slate-900">{formatDate(expense.expense_date)}</span>
+            <span className="font-medium text-slate-900">{formatDate(expense.expense_date, locale)}</span>
           </p>
           <p className="text-sm">
             <span className="text-slate-500">{tx(locale, 'Paid by', 'Pagado por')}:</span>{' '}
@@ -199,15 +218,13 @@ export default async function ExpenseDetailPage({
           </p>
           <p className="text-sm">
             <span className="text-slate-500">{tx(locale, 'Split type', 'Tipo de división')}:</span>{' '}
-            <span className="font-medium capitalize text-slate-900">{expense.split_type}</span>
+            <span className="font-medium text-slate-900">{splitTypeLabel}</span>
           </p>
           {expense.is_itemized ? (
             <>
               <p className="text-sm">
                 <span className="text-slate-500">{tx(locale, 'Itemized status', 'Estado de itemización')}:</span>{' '}
-                <span className="font-medium text-slate-900 capitalize">
-                  {derivedItemizationStatus.replace(/_/g, ' ')}
-                </span>
+                <span className="font-medium text-slate-900">{itemizedStatusLabel}</span>
               </p>
               <p className="text-sm">
                 <span className="text-slate-500">{tx(locale, 'Assigned total', 'Total asignado')}:</span>{' '}

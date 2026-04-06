@@ -9,8 +9,9 @@ export function formatCurrency(amountCents: number, currency: string) {
   }).format(amountCents / 100);
 }
 
-export function formatDate(date: string) {
-  return new Intl.DateTimeFormat('en-US', {
+export function formatDate(date: string, locale: 'en' | 'es' = 'en') {
+  const formatLocale = locale === 'es' ? 'es-MX' : 'en-US';
+  return new Intl.DateTimeFormat(formatLocale, {
     year: 'numeric',
     month: 'short',
     day: '2-digit',

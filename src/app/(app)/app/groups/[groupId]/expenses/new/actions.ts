@@ -52,6 +52,32 @@ export type CreateExpenseFormState = {
 
 export type CreateExpenseActionState = ActionResult<CreateExpenseFormState>;
 
+function toFriendlyWriteError(error: { message: string; code?: string | null } | null | undefined) {
+  if (!error) {
+    return 'Request failed.';
+  }
+
+  if (
+    error.code === '42501'
+    || error.message.includes('row-level security policy')
+    || error.message.toLowerCase().includes('permission denied')
+  ) {
+    return "You're not authorized to do this.";
+  }
+
+  return error.message;
+}
+
+function toFriendlyWriteErrorMessage(message: string) {
+  if (
+    message.includes('row-level security policy')
+    || message.toLowerCase().includes('permission denied')
+  ) {
+    return "You're not authorized to do this.";
+  }
+  return message;
+}
+
 function getRawValues(formData: FormData): CreateExpenseFormState {
   const participants: CreateExpenseFormState['participants'] = {};
 
@@ -217,7 +243,7 @@ export async function createExpenseAction(
     if (expenseError || !expense) {
       return buildActionResult({
         success: false,
-        message: expenseError?.message ?? 'Could not create itemized expense.',
+        message: toFriendlyWriteError(expenseError),
         values: rawValues,
       });
     }
@@ -229,7 +255,11 @@ export async function createExpenseAction(
       items: normalized.items,
     });
     if (replaceItems.error) {
-      return buildActionResult({ success: false, message: replaceItems.error, values: rawValues });
+      return buildActionResult({
+        success: false,
+        message: toFriendlyWriteErrorMessage(replaceItems.error),
+        values: rawValues,
+      });
     }
 
     if (computed.summary.participants.length > 0) {
@@ -244,7 +274,7 @@ export async function createExpenseAction(
       if (participantsError) {
         return buildActionResult({
           success: false,
-          message: participantsError.message,
+          message: toFriendlyWriteError(participantsError),
           values: rawValues,
         });
       }
@@ -334,7 +364,7 @@ export async function createExpenseAction(
   if (expenseError || !expense) {
     return buildActionResult({
       success: false,
-      message: expenseError?.message ?? 'Could not create expense.',
+      message: toFriendlyWriteError(expenseError),
       values: rawValues,
     });
   }
@@ -358,7 +388,7 @@ export async function createExpenseAction(
   if (participantsError) {
     return buildActionResult({
       success: false,
-      message: participantsError.message,
+      message: toFriendlyWriteError(participantsError),
       values: rawValues,
     });
   }

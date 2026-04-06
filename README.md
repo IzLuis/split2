@@ -87,6 +87,11 @@ supabase/
     - `set_updated_at`
   - RLS enabled on all app tables
   - Policies to restrict reads/writes to authorized users and group members
+- Latest permission/audit update:
+  - `supabase/migrations/027_member_expense_edits_and_audit.sql`
+  - lets any active group member edit expenses/itemized rows
+  - keeps `expenses.created_by` immutable
+  - tracks last expense editor in `expenses.updated_by`
 
 ## Entity Relationships
 - `profiles (id)` 1:N `group_members.user_id`
@@ -119,6 +124,7 @@ npm install
 2. Run SQL migration in Supabase SQL editor:
 - Fresh install (recommended): run only:
   - `supabase/migrations/999_v1_baseline_schema.sql`
+  - then run any migrations created after baseline (currently: `027_member_expense_edits_and_audit.sql`)
 - Existing installs already using incremental migrations:
   - keep using `supabase/migrations/001` through the latest migration as needed.
   - historical migration files are kept for audit/history and upgrade continuity.
@@ -156,6 +162,10 @@ npm run build -- --webpack
   - participants
   - split type (`equal`, `custom`, `percentage`)
 - Expense management: edit expense and delete expense.
+- Expense edit permissions:
+  - any active group member can edit expense details (including payer/splits/itemized rows)
+  - original creator is preserved
+  - last editor is tracked in DB (`expenses.updated_by`)
 - Split validation:
   - custom amounts must equal total
   - percentages must total 100
@@ -191,6 +201,7 @@ npm run build -- --webpack
   - bilingual UI support (English + Spanish)
   - Spanish copy is tuned for Mexican/Latin American usage
   - locale follows browser/system language through `Accept-Language` (server) and document locale (client)
+  - expense detail labels now localize split type, itemization status, and date formatting
 - Motion polish:
   - Events dropdown uses a smooth accordion-style reveal/collapse animation (respects reduced-motion)
   - subtle hover-lift motion on key group/expense cards

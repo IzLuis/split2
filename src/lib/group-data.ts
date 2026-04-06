@@ -20,7 +20,28 @@ export async function getUserGroups(
   supabase: SupabaseClient,
   userId: string,
 ): Promise<GroupListItem[]> {
-  const baseQuery = supabase
+  let data: Array<{
+    group_id: string;
+    role: 'owner' | 'member';
+    groups: {
+      id: string;
+      name: string;
+      description: string | null;
+      default_currency: string;
+      calculation_mode: 'normal' | 'reduced';
+      created_at: string;
+    } | Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      default_currency: string;
+      calculation_mode: 'normal' | 'reduced';
+      created_at: string;
+    }> | null;
+  }> | null = null;
+  let errorMessage: string | null = null;
+
+  const baseResult = await supabase
     .from('group_members')
     .select(
       `
@@ -35,13 +56,14 @@ export async function getUserGroups(
         created_at
       )
     `,
-    );
-  let { data, error } = await baseQuery
+    )
     .eq('user_id', userId)
     .is('left_at', null)
     .order('created_at', { foreignTable: 'groups', ascending: false });
+  data = baseResult.data as typeof data;
+  errorMessage = baseResult.error?.message ?? null;
 
-  if (error && isMissingLeftAtColumnError(error.message)) {
+  if (errorMessage && isMissingLeftAtColumnError(errorMessage)) {
     const fallback = await supabase
       .from('group_members')
       .select(
@@ -60,15 +82,37 @@ export async function getUserGroups(
       )
       .eq('user_id', userId)
       .order('created_at', { foreignTable: 'groups', ascending: false });
-    data = fallback.data;
-    error = fallback.error;
+    data = fallback.data as typeof data;
+    errorMessage = fallback.error?.message ?? null;
   }
 
-  if (error) {
-    throw new Error(`Could not load groups: ${error.message}`);
+  if (errorMessage) {
+    throw new Error(`Could not load groups: ${errorMessage}`);
   }
 
-  return (data ?? []).map((row) => {
+  const rows = (data ?? []) as Array<{
+    role: 'owner' | 'member';
+    groups:
+      | {
+        id: string;
+        name: string;
+        description: string | null;
+        default_currency: string;
+        calculation_mode: 'normal' | 'reduced';
+        created_at: string;
+      }
+      | Array<{
+        id: string;
+        name: string;
+        description: string | null;
+        default_currency: string;
+        calculation_mode: 'normal' | 'reduced';
+        created_at: string;
+      }>
+      | null;
+  }>;
+
+  return rows.map((row) => {
     const group = Array.isArray(row.groups) ? row.groups[0] : row.groups;
 
     return {
@@ -87,7 +131,19 @@ export async function getGroupMembers(
   supabase: SupabaseClient,
   groupId: string,
 ): Promise<GroupMember[]> {
-  const baseQuery = supabase
+  let data: Array<{
+    user_id: string;
+    role: 'owner' | 'member';
+    invited_at: string | null;
+    accepted_at: string | null;
+    profiles:
+      | { full_name: string | null; email: string }
+      | Array<{ full_name: string | null; email: string }>
+      | null;
+  }> | null = null;
+  let errorMessage: string | null = null;
+
+  const baseResult = await supabase
     .from('group_members')
     .select(
       `
@@ -100,14 +156,14 @@ export async function getGroupMembers(
         email
       )
     `,
-    );
-
-  let { data, error } = await baseQuery
+    )
     .eq('group_id', groupId)
     .is('left_at', null)
     .order('created_at', { ascending: true });
+  data = baseResult.data as typeof data;
+  errorMessage = baseResult.error?.message ?? null;
 
-  if (error && isMissingLeftAtColumnError(error.message)) {
+  if (errorMessage && isMissingLeftAtColumnError(errorMessage)) {
     const fallback = await supabase
       .from('group_members')
       .select(
@@ -124,15 +180,26 @@ export async function getGroupMembers(
       )
       .eq('group_id', groupId)
       .order('created_at', { ascending: true });
-    data = fallback.data;
-    error = fallback.error;
+    data = fallback.data as typeof data;
+    errorMessage = fallback.error?.message ?? null;
   }
 
-  if (error) {
-    throw new Error(`Could not load group members: ${error.message}`);
+  if (errorMessage) {
+    throw new Error(`Could not load group members: ${errorMessage}`);
   }
 
-  return (data ?? []).map((member) => ({
+  const members = (data ?? []) as Array<{
+    user_id: string;
+    role: 'owner' | 'member';
+    invited_at: string | null;
+    accepted_at: string | null;
+    profiles:
+      | { full_name: string | null; email: string }
+      | Array<{ full_name: string | null; email: string }>
+      | null;
+  }>;
+
+  return members.map((member) => ({
     user_id: member.user_id as string,
     role: member.role as 'owner' | 'member',
     invited_at: (member.invited_at as string | null) ?? null,

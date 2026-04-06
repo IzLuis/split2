@@ -56,6 +56,18 @@ export default async function GroupDetailPage({
     const derived = getDerivedItemized(expense);
     return expense.is_itemized && derived.unassignedFromParticipants > 0;
   });
+  const unresolvedItemizedMessage =
+    unresolvedItemized.length === 1
+      ? tx(
+        locale,
+        '1 itemized expense is still partially assigned. Unassigned amounts are not included in balances yet.',
+        '1 gasto itemizado sigue parcialmente asignado. Los montos sin asignar todavía no se incluyen en los balances.',
+      )
+      : tx(
+        locale,
+        `${unresolvedItemized.length} itemized expenses are still partially assigned. Unassigned amounts are not included in balances yet.`,
+        `${unresolvedItemized.length} gastos itemizados siguen parcialmente asignados. Los montos sin asignar todavía no se incluyen en los balances.`,
+      );
   const events = (() => {
     const byEvent = new Map<
       string,
@@ -158,14 +170,7 @@ export default async function GroupDetailPage({
         </p>
         {unresolvedItemized.length > 0 ? (
           <p className="mt-2 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            {unresolvedItemized.length}{' '}
-            {tx(locale, 'itemized expense', 'gasto itemizado')}
-            {unresolvedItemized.length > 1 ? tx(locale, 's are', 's están') : tx(locale, ' is', ' está')}{' '}
-            {tx(
-              locale,
-              'still partially assigned. Unassigned amounts are not included in balances yet.',
-              'aún parcialmente asignado. Los montos sin asignar todavía no se incluyen en los balances.',
-            )}
+            {unresolvedItemizedMessage}
           </p>
         ) : null}
         {summary.statements.length === 0 ? (
@@ -177,7 +182,7 @@ export default async function GroupDetailPage({
             {summary.statements.map((statement) => (
               <li key={`${statement.fromUserId}-${statement.toUserId}`} className="text-sm text-slate-700">
                 <span className="font-medium">{memberMap.get(statement.fromUserId) || tx(locale, 'Unknown', 'Desconocido')}</span>{' '}
-                {tx(locale, 'owes', 'debe')}{' '}
+                {locale === 'es' ? 'debe a' : 'owes'}{' '}
                 <span className="font-medium">{memberMap.get(statement.toUserId) || tx(locale, 'Unknown', 'Desconocido')}</span>{' '}
                 <span className="font-semibold">
                   {formatCurrency(statement.amountCents, summary.expenses[0]?.currency || 'USD')}
@@ -287,15 +292,17 @@ export default async function GroupDetailPage({
               const hasTip = (expense.tip_amount_cents ?? 0) > 0 && Number(expense.tip_percentage ?? 0) > 0;
               const hasDeliveryFee = (expense.delivery_fee_cents ?? 0) > 0;
               const derived = getDerivedItemized(expense);
-              const subtitleParts = [`${formatCurrency(expense.subtotal_amount_cents, expense.currency)} paid`];
+              const subtitleParts = [
+                `${formatCurrency(expense.subtotal_amount_cents, expense.currency)} ${tx(locale, 'paid', 'pagado')}`,
+              ];
               if (hasTip) {
                 subtitleParts.push(
-                  `${Number(expense.tip_percentage ?? 0).toFixed(3).replace(/\.?0+$/, '')}% tip`,
+                  `${Number(expense.tip_percentage ?? 0).toFixed(3).replace(/\.?0+$/, '')}% ${tx(locale, 'tip', 'propina')}`,
                 );
               }
               if (hasDeliveryFee) {
                 subtitleParts.push(
-                  `${formatCurrency(expense.delivery_fee_cents ?? 0, expense.currency)} delivery fee`,
+                  `${formatCurrency(expense.delivery_fee_cents ?? 0, expense.currency)} ${tx(locale, 'delivery fee', 'cargo de envío')}`,
                 );
               }
               return (
@@ -309,7 +316,7 @@ export default async function GroupDetailPage({
                       {expense.title}
                     </Link>
                     <p className="text-xs text-slate-500">
-                      {formatDate(expense.expense_date)} {tx(locale, 'by', 'por')} {memberMap.get(expense.paid_by) || tx(locale, 'Unknown', 'Desconocido')}
+                      {formatDate(expense.expense_date, locale)} {tx(locale, 'by', 'por')} {memberMap.get(expense.paid_by) || tx(locale, 'Unknown', 'Desconocido')}
                     </p>
                     {expense.event ? (
                       <span
@@ -376,7 +383,7 @@ export default async function GroupDetailPage({
                     {formatCurrency(settlement.amount_cents, settlement.currency)}
                   </span>
                 </p>
-                <p className="text-xs text-slate-500">{formatDate(settlement.settled_on)}</p>
+                <p className="text-xs text-slate-500">{formatDate(settlement.settled_on, locale)}</p>
                 {settlement.note ? <p className="mt-1 text-xs text-slate-600">{settlement.note}</p> : null}
               </li>
             ))}

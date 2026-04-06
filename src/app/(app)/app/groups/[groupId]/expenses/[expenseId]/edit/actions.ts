@@ -47,13 +47,12 @@ export type EditExpenseFormState = ActionResult<EditExpenseFormValues>;
 export type DeleteExpenseActionState = ActionResult<Record<string, never>>;
 
 function formatParticipantsMutationError(error: { message: string; code?: string | null }) {
-  if (error.code === '42501') {
-    if (error.message.includes('expense_participants')) {
-      return 'Your database still blocks participant updates. Apply migration 013_expense_participants_mutation_policies.sql in Supabase SQL editor and retry.';
-    }
-    if (error.message.includes('expense_items') || error.message.includes('expense_item_claims')) {
-      return 'Your database still blocks itemized expense updates. Apply migration 014_itemized_expenses.sql in Supabase SQL editor and retry.';
-    }
+  if (
+    error.code === '42501'
+    || error.message.includes('row-level security policy')
+    || error.message.toLowerCase().includes('permission denied')
+  ) {
+    return "You're not authorized to do this.";
   }
 
   return error.message;
@@ -208,7 +207,11 @@ export async function updateExpenseAction(
       items: normalized.items,
     });
     if (replaceItems.error) {
-      return buildActionResult({ success: false, message: replaceItems.error, values: rawValues });
+      return buildActionResult({
+        success: false,
+        message: formatParticipantsMutationError({ message: replaceItems.error }),
+        values: rawValues,
+      });
     }
 
     if (computed.summary.participants.length > 0) {
@@ -248,13 +251,16 @@ export async function updateExpenseAction(
         expense_date: validated.data.expenseDate,
         paid_by: validated.data.paidBy,
         split_type: 'custom',
-        created_by: user.id,
       })
       .eq('group_id', groupId)
       .eq('id', expenseId);
 
     if (updateError) {
-      return buildActionResult({ success: false, message: updateError.message, values: rawValues });
+      return buildActionResult({
+        success: false,
+        message: formatParticipantsMutationError(updateError),
+        values: rawValues,
+      });
     }
 
     revalidatePath(`/app/groups/${groupId}`);
@@ -378,13 +384,16 @@ export async function updateExpenseAction(
       expense_date: validated.data.expenseDate,
       paid_by: validated.data.paidBy,
       split_type: validated.data.splitType,
-      created_by: user.id,
     })
     .eq('group_id', groupId)
     .eq('id', expenseId);
 
   if (updateError) {
-    return buildActionResult({ success: false, message: updateError.message, values: rawValues });
+    return buildActionResult({
+      success: false,
+      message: formatParticipantsMutationError(updateError),
+      values: rawValues,
+    });
   }
 
   revalidatePath(`/app/groups/${groupId}`);
@@ -416,7 +425,7 @@ export async function deleteExpenseAction(
   if (error) {
     return buildActionResult({
       success: false,
-      message: `Could not delete expense: ${error.message}`,
+      message: formatParticipantsMutationError(error),
       values: {},
     });
   }

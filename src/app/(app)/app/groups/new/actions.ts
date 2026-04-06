@@ -17,6 +17,32 @@ export type CreateGroupFormValues = {
 
 export type CreateGroupFormState = ActionResult<CreateGroupFormValues>;
 
+function isAuthorizationError(error: { message: string; code?: string | null } | null | undefined) {
+  if (!error) return false;
+  return (
+    error.code === '42501'
+    || error.message.includes('row-level security policy')
+    || error.message.toLowerCase().includes('permission denied')
+  );
+}
+
+function toFriendlyWriteError(
+  error: { message: string; code?: string | null } | null | undefined,
+  fallback: string,
+) {
+  if (!error) return fallback;
+  if (isAuthorizationError(error)) {
+    return "You're not authorized to do this.";
+  }
+  return error.message || fallback;
+}
+
+function isMissingCreateGroupRpc(errorMessage: string | undefined) {
+  const message = errorMessage ?? '';
+  return message.includes('function public.create_group')
+    && message.includes('does not exist');
+}
+
 export async function createGroupAction(
   _prevState: CreateGroupFormState,
   formData: FormData,
@@ -79,42 +105,66 @@ export async function createGroupAction(
     });
   }
 
-  const { data: createdGroup, error: groupError } = await supabase
-    .from('groups')
-    .insert({
-      name: validated.data.name,
-      description: validated.data.description || null,
-      default_currency: validated.data.defaultCurrency,
-      calculation_mode: validated.data.calculationMode,
-      created_by: user.id,
-    })
-    .select('id')
-    .single();
+  let groupId = '';
+  let ownerInsertedByRpc = false;
 
-  if (groupError || !createdGroup) {
+  const rpcResult = await supabase.rpc('create_group', {
+    p_name: validated.data.name,
+    p_description: validated.data.description || null,
+    p_default_currency: validated.data.defaultCurrency,
+    p_calculation_mode: validated.data.calculationMode,
+    p_member_emails: [],
+  });
+
+  if (!rpcResult.error && rpcResult.data) {
+    groupId = String(rpcResult.data);
+    ownerInsertedByRpc = true;
+  } else if (rpcResult.error && isMissingCreateGroupRpc(rpcResult.error.message)) {
+    const { data: createdGroup, error: groupError } = await supabase
+      .from('groups')
+      .insert({
+        name: validated.data.name,
+        description: validated.data.description || null,
+        default_currency: validated.data.defaultCurrency,
+        calculation_mode: validated.data.calculationMode,
+        created_by: user.id,
+      })
+      .select('id')
+      .single();
+
+    if (groupError || !createdGroup) {
+      return buildActionResult({
+        success: false,
+        message: toFriendlyWriteError(groupError, 'Could not create group.'),
+        values: rawValues,
+      });
+    }
+
+    groupId = String(createdGroup.id);
+  } else {
     return buildActionResult({
       success: false,
-      message: groupError?.message ?? 'Could not create group.',
+      message: toFriendlyWriteError(rpcResult.error, 'Could not create group.'),
       values: rawValues,
     });
   }
 
-  const groupId = String(createdGroup.id);
-
-  const { error: ownerMembershipError } = await supabase.from('group_members').insert({
-    group_id: groupId,
-    user_id: user.id,
-    role: 'owner',
-    added_by: user.id,
-    accepted_at: new Date().toISOString(),
-  });
-
-  if (ownerMembershipError) {
-    return buildActionResult({
-      success: false,
-      message: ownerMembershipError.message,
-      values: rawValues,
+  if (!ownerInsertedByRpc) {
+    const { error: ownerMembershipError } = await supabase.from('group_members').insert({
+      group_id: groupId,
+      user_id: user.id,
+      role: 'owner',
+      added_by: user.id,
+      accepted_at: new Date().toISOString(),
     });
+
+    if (ownerMembershipError) {
+      return buildActionResult({
+        success: false,
+        message: toFriendlyWriteError(ownerMembershipError, 'Could not add owner to group.'),
+        values: rawValues,
+      });
+    }
   }
 
   const memberRows = allTargetEmails
@@ -141,7 +191,7 @@ export async function createGroupAction(
     if (memberInsertError) {
       return buildActionResult({
         success: false,
-        message: memberInsertError.message,
+        message: toFriendlyWriteError(memberInsertError, 'Could not add members.'),
         values: rawValues,
       });
     }

@@ -19,6 +19,8 @@ function translateToastMessage(message: string, locale: Locale) {
   if (message === 'You left the group.') return 'Saliste del grupo.';
   if (message === 'Group owners cannot leave the group.') return 'Los propietarios del grupo no pueden salir.';
   if (message === 'You already left this group.') return 'Ya saliste de este grupo.';
+  if (message === "You're not authorized to do this.") return 'No estás autorizado para hacer esto.';
+  if (message === 'You are not a member of this group.') return 'No eres miembro de este grupo.';
 
   if (message.startsWith('Members updated:')) {
     return message
@@ -48,6 +50,13 @@ function translateToastMessage(message: string, locale: Locale) {
     'You cannot leave yet because your past expenses, settlements, or shares are still linked to this group.'
   ) {
     return 'Aún no puedes salir porque tus gastos, pagos o participaciones históricas siguen vinculados a este grupo.';
+  }
+
+  if (
+    message.includes('row-level security policy')
+    || message.toLowerCase().includes('permission denied')
+  ) {
+    return 'No estás autorizado para hacer esto.';
   }
 
   return message;
