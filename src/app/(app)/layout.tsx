@@ -9,7 +9,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   const locale = await getRequestLocale();
 
   return (
-    <div className="min-h-screen bg-[radial-gradient(ellipse_at_top,_#f8fafc_0%,_#eef2ff_45%,_#f8fafc_100%)]">
+    <div className="app-shell-bg min-h-screen">
       <header className="border-b border-slate-200/70 bg-white/80 backdrop-blur">
         <div className="mx-auto flex w-full max-w-5xl items-center justify-between px-4 py-3 sm:px-6">
           <Link href="/app" className="text-lg font-semibold text-slate-900">
