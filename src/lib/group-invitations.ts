@@ -29,6 +29,7 @@ export async function resolveMemberUserIdsByEmail(params: {
   actorUserId: string;
   actorEmail?: string | null;
   emails: string[];
+  inviteRedirectTo?: string;
 }) {
   const normalizedEmails = Array.from(
     new Set(
@@ -87,7 +88,14 @@ export async function resolveMemberUserIdsByEmail(params: {
   const invitedEmailSet = new Set<string>();
 
   for (const email of missingEmails) {
-    const inviteResult = await admin.auth.admin.inviteUserByEmail(email);
+    const inviteResult = await admin.auth.admin.inviteUserByEmail(
+      email,
+      params.inviteRedirectTo
+        ? {
+          redirectTo: params.inviteRedirectTo,
+        }
+        : undefined,
+    );
     const invitedId = inviteResult.data.user?.id;
 
     if (inviteResult.error || !invitedId) {

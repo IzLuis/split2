@@ -6,6 +6,7 @@ export function AppToaster() {
   return (
     <Toaster
       position="top-center"
+      theme="system"
       richColors
       expand={false}
       toastOptions={{
@@ -14,4 +15,3 @@ export function AppToaster() {
     />
   );
 }
-

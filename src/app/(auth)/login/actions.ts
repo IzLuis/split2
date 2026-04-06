@@ -1,6 +1,7 @@
 'use server';
 
 import { redirect } from 'next/navigation';
+import { getAuthEmailRedirectUrl } from '@/lib/app-url';
 import { authSchema } from '@/lib/validation';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 
@@ -27,10 +28,13 @@ export async function submitAuthAction(
   const { email, password, fullName, mode } = validated.data;
 
   if (mode === 'sign-up') {
+    const emailRedirectTo = await getAuthEmailRedirectUrl('/login');
+
     const { error } = await supabase.auth.signUp({
       email,
       password,
       options: {
+        emailRedirectTo,
         data: {
           full_name: fullName,
         },

@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
 import { buildActionResult, type ActionResult } from '@/lib/action-result';
 import { ensureProfileAndClient } from '@/lib/auth';
+import { getAuthEmailRedirectUrl } from '@/lib/app-url';
 import { parseInviteEmails, resolveMemberUserIdsByEmail } from '@/lib/group-invitations';
 import { createGroupSchema } from '@/lib/validation';
 
@@ -55,6 +56,7 @@ export async function updateGroupAction(
   }
 
   const { user, supabase } = await ensureProfileAndClient();
+  const inviteRedirectTo = await getAuthEmailRedirectUrl('/login');
 
   const parsedInviteEmails = parseInviteEmails(rawValues.inviteEmails);
   if (parsedInviteEmails.invalid.length > 0) {
@@ -74,6 +76,7 @@ export async function updateGroupAction(
     actorUserId: user.id,
     actorEmail: user.email,
     emails: allTargetEmails,
+    inviteRedirectTo,
   });
 
   if (memberResolution.error) {
