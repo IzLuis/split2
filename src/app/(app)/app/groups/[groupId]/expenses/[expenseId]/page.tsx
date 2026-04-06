@@ -60,10 +60,7 @@ export default async function ExpenseDetailPage({
         line_total_cents,
         is_shared,
         notes,
-        sort_order,
-        claims:expense_item_claims (
-          user_id
-        )
+        sort_order
       )
     `,
     )
@@ -146,8 +143,26 @@ export default async function ExpenseDetailPage({
     is_shared: boolean;
     notes: string | null;
     sort_order: number;
-    claims: Array<{ user_id: string }>;
   }>) ?? []).sort((a, b) => a.sort_order - b.sort_order);
+  const itemIds = items.map((item) => item.id);
+  const claimersByItemId = new Map<string, string[]>();
+
+  if (itemIds.length > 0) {
+    const { data: claimRows, error: claimRowsError } = await supabase
+      .from('expense_item_claims')
+      .select('expense_item_id, user_id')
+      .in('expense_item_id', itemIds);
+
+    if (claimRowsError) {
+      throw new Error(`Could not load item claims: ${claimRowsError.message}`);
+    }
+
+    for (const row of (claimRows ?? []) as Array<{ expense_item_id: string; user_id: string }>) {
+      const claimers = claimersByItemId.get(row.expense_item_id) ?? [];
+      claimers.push(row.user_id);
+      claimersByItemId.set(row.expense_item_id, claimers);
+    }
+  }
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5">
@@ -251,7 +266,7 @@ export default async function ExpenseDetailPage({
           ) : (
             <ul className="mt-3 space-y-2">
               {items.map((item) => {
-                const claimantIds = [...new Set((item.claims ?? []).map((claim) => claim.user_id))];
+                const claimantIds = [...new Set(claimersByItemId.get(item.id) ?? [])];
                 const claimedByCurrentUser = claimantIds.includes(user.id);
                 const canClaim =
                   item.is_shared || claimantIds.length === 0 || claimedByCurrentUser;

@@ -12,6 +12,26 @@ function centsToString(cents: number) {
   return (cents / 100).toFixed(2);
 }
 
+function areItemsAssignedEquallyToAllMembers(
+  memberIds: string[],
+  items: Array<{ isShared: boolean; assigneeUserIds: string[] }>,
+) {
+  const normalizedMemberIds = [...new Set(memberIds)].sort();
+  if (normalizedMemberIds.length === 0 || items.length === 0) {
+    return false;
+  }
+
+  const serializedMembers = normalizedMemberIds.join(',');
+  return items.every((item) => {
+    if (!item.isShared) {
+      return false;
+    }
+
+    const normalizedAssignees = [...new Set(item.assigneeUserIds)].sort();
+    return normalizedAssignees.join(',') === serializedMembers;
+  });
+}
+
 export default async function EditExpensePage({
   params,
 }: {
@@ -96,6 +116,12 @@ export default async function EditExpensePage({
         assigneeUserIds: item.assigneeUserIds,
       }))
     : [emptyItemizedFormItem()];
+  const itemizedEqualSplit = expense.is_itemized
+    ? areItemsAssignedEquallyToAllMembers(
+      members.map((member) => member.user_id),
+      items,
+    )
+    : false;
 
   const initialState: EditExpenseFormState = {
     success: false,
@@ -115,6 +141,7 @@ export default async function EditExpensePage({
       paidBy: expense.paid_by,
       splitType: (expense.is_itemized ? 'custom' : expense.split_type),
       isItemized: expense.is_itemized ?? false,
+      itemizedEqualSplit,
       items,
       participants,
     },

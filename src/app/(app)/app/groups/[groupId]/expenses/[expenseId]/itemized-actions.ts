@@ -10,15 +10,7 @@ export async function claimExpenseItemAction(groupId: string, expenseId: string,
 
   const { data: item, error: itemError } = await supabase
     .from('expense_items')
-    .select(
-      `
-      id,
-      is_shared,
-      claims:expense_item_claims (
-        user_id
-      )
-    `,
-    )
+    .select('id, is_shared')
     .eq('group_id', groupId)
     .eq('expense_id', expenseId)
     .eq('id', expenseItemId)
@@ -28,29 +20,33 @@ export async function claimExpenseItemAction(groupId: string, expenseId: string,
     throw new Error(`Could not load expense item: ${itemError?.message ?? 'Item not found.'}`);
   }
 
-  const existingClaimers = new Set(
-    ((item.claims as Array<{ user_id: string }> | null) ?? []).map((claim) => claim.user_id),
-  );
+  const { data: claimRows, error: claimsError } = await supabase
+    .from('expense_item_claims')
+    .select('user_id')
+    .eq('expense_item_id', expenseItemId);
+
+  if (claimsError) {
+    throw new Error(`Could not load existing item claims: ${claimsError.message}`);
+  }
+
+  const existingClaimers = new Set(((claimRows as Array<{ user_id: string }> | null) ?? []).map((claim) => claim.user_id));
 
   if (!item.is_shared && existingClaimers.size > 0 && !existingClaimers.has(user.id)) {
     throw new Error('This non-shared item is already claimed by another user.');
   }
 
-  const { error: claimError } = await supabase
-    .from('expense_item_claims')
-    .upsert(
-      [
-        {
-          expense_item_id: expenseItemId,
-          user_id: user.id,
-          created_by: user.id,
-        },
-      ],
-      { onConflict: 'expense_item_id,user_id', ignoreDuplicates: true },
-    );
+  if (!existingClaimers.has(user.id)) {
+    const { error: claimError } = await supabase
+      .from('expense_item_claims')
+      .insert({
+        expense_item_id: expenseItemId,
+        user_id: user.id,
+        created_by: user.id,
+      });
 
-  if (claimError) {
-    throw new Error(`Could not claim item: ${claimError.message}`);
+    if (claimError && claimError.code !== '23505') {
+      throw new Error(`Could not claim item: ${claimError.message}`);
+    }
   }
 
   const synced = await recomputeAndPersistItemizedExpense(supabase, groupId, expenseId);

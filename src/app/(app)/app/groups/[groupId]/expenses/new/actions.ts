@@ -8,6 +8,7 @@ import { applyEvenFeeToShares, applyTipToShares, parseTipPercentage } from '@/li
 import { resolveExpenseEventForSave } from '@/lib/expense-events';
 import { getGroupMembers } from '@/lib/group-data';
 import {
+  assignAllItemsToAllMembers,
   emptyItemizedFormItem,
   parseItemizedItemsFromFormData,
   normalizeItemizedFormItems,
@@ -32,6 +33,7 @@ export type CreateExpenseFormState = {
   paidBy: string;
   splitType: SplitType;
   isItemized: boolean;
+  itemizedEqualSplit: boolean;
   items: Array<{
     name: string;
     unitPrice: string;
@@ -121,6 +123,7 @@ function getRawValues(formData: FormData): CreateExpenseFormState {
     paidBy: String(formData.get('paidBy') ?? ''),
     splitType: (String(formData.get('splitType') ?? 'equal') as SplitType),
     isItemized: formData.get('isItemized') === 'on',
+    itemizedEqualSplit: formData.get('itemizedEqualSplit') === 'on',
     items: itemizedItems.length > 0 ? itemizedItems : [emptyItemizedFormItem()],
     participants,
   };
@@ -202,8 +205,12 @@ export async function createExpenseAction(
       return buildActionResult({ success: false, message: normalized.error, values: rawValues });
     }
 
+    const normalizedItems = rawValues.itemizedEqualSplit
+      ? assignAllItemsToAllMembers(normalized.items, [...memberIds])
+      : normalized.items;
+
     const computed = computeItemizedExpenseFromNormalizedItems(
-      normalized.items,
+      normalizedItems,
       tipParsed.value,
       deliveryFeeCents,
     );
@@ -252,7 +259,7 @@ export async function createExpenseAction(
       groupId,
       expenseId: expense.id,
       createdBy: user.id,
-      items: normalized.items,
+      items: normalizedItems,
     });
     if (replaceItems.error) {
       return buildActionResult({

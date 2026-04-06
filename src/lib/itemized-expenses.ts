@@ -156,6 +156,22 @@ export function normalizeItemizedFormItems(
   return { items: normalized, error: null };
 }
 
+export function assignAllItemsToAllMembers(
+  items: NormalizedItemizedItem[],
+  memberIds: string[],
+): NormalizedItemizedItem[] {
+  const allMembers = [...new Set(memberIds)].sort();
+  if (allMembers.length === 0) {
+    return items;
+  }
+
+  return items.map((item) => ({
+    ...item,
+    isShared: true,
+    assigneeUserIds: allMembers,
+  }));
+}
+
 export function computeItemizedExpenseFromNormalizedItems(
   items: NormalizedItemizedItem[],
   tipPercentage: number,
@@ -311,10 +327,7 @@ export async function loadItemizedInputsForExpense(
       line_total_cents,
       is_shared,
       notes,
-      sort_order,
-      claims:expense_item_claims (
-        user_id
-      )
+      sort_order
     `,
     )
     .eq('group_id', groupId)
@@ -326,7 +339,7 @@ export async function loadItemizedInputsForExpense(
     return { error: error.message, items: [] as NormalizedItemizedItem[] };
   }
 
-  const items = ((data ?? []) as Array<{
+  const itemRows = ((data ?? []) as Array<{
     id: string;
     name: string;
     unit_amount_cents: number;
@@ -335,8 +348,29 @@ export async function loadItemizedInputsForExpense(
     is_shared: boolean;
     notes: string | null;
     sort_order: number;
-    claims: Array<{ user_id: string }>;
-  }>).map((item, index) => ({
+  }>);
+
+  const itemIds = itemRows.map((item) => item.id);
+  const claimRowsByItemId = new Map<string, string[]>();
+
+  if (itemIds.length > 0) {
+    const { data: claimRows, error: claimsError } = await supabase
+      .from('expense_item_claims')
+      .select('expense_item_id, user_id')
+      .in('expense_item_id', itemIds);
+
+    if (claimsError) {
+      return { error: claimsError.message, items: [] as NormalizedItemizedItem[] };
+    }
+
+    for (const row of (claimRows ?? []) as Array<{ expense_item_id: string; user_id: string }>) {
+      const claimers = claimRowsByItemId.get(row.expense_item_id) ?? [];
+      claimers.push(row.user_id);
+      claimRowsByItemId.set(row.expense_item_id, claimers);
+    }
+  }
+
+  const items = itemRows.map((item, index) => ({
     databaseId: item.id,
     sortOrder: index,
     itemKey: `item-${index}`,
@@ -346,7 +380,7 @@ export async function loadItemizedInputsForExpense(
     lineTotalCents: item.line_total_cents,
     isShared: item.is_shared,
     notes: item.notes,
-    assigneeUserIds: [...new Set((item.claims ?? []).map((claim) => claim.user_id))],
+    assigneeUserIds: [...new Set(claimRowsByItemId.get(item.id) ?? [])],
   }));
 
   return { error: null, items };

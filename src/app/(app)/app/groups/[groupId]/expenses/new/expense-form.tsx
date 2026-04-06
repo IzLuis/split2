@@ -40,6 +40,7 @@ const initialState: CreateExpenseActionState = {
     paidBy: '',
     splitType: 'equal',
     isItemized: false,
+    itemizedEqualSplit: false,
     items: [emptyItemizedFormItem()],
     participants: {},
   },
@@ -132,6 +133,7 @@ export function NewExpenseForm({
   const formRef = useRef<HTMLFormElement>(null);
   const [splitType, setSplitType] = useState<SplitType>(state.values.splitType);
   const [isItemized, setIsItemized] = useState(state.values.isItemized);
+  const [itemizedEqualSplit, setItemizedEqualSplit] = useState(state.values.itemizedEqualSplit);
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [itemRowCount, setItemRowCount] = useState(Math.max(state.values.items.length, 1));
   const pendingReceiptRef = useRef<ReceiptOcrResult | null>(null);
@@ -304,6 +306,22 @@ export function NewExpenseForm({
           {tx(locale, 'Enable Itemized Expense', 'Activar gasto itemizado')}
         </label>
 
+        {isItemized ? (
+          <label className="flex items-center gap-2 rounded-md border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-700">
+            <input
+              name="itemizedEqualSplit"
+              type="checkbox"
+              checked={itemizedEqualSplit}
+              onChange={(event) => setItemizedEqualSplit(event.target.checked)}
+            />
+            {tx(
+              locale,
+              'Split itemized expense equally across all current group members',
+              'Dividir gasto itemizado en partes iguales entre todos los miembros actuales del grupo',
+            )}
+          </label>
+        ) : null}
+
         <div className="grid gap-4 sm:grid-cols-3">
           <label className="block space-y-1">
             <span className="text-sm font-medium text-slate-700">{tx(locale, 'Subtotal amount', 'Monto subtotal')}</span>
@@ -448,7 +466,8 @@ export function NewExpenseForm({
                         <input
                           name={`item_${index}_shared`}
                           type="checkbox"
-                          defaultChecked={item.isShared}
+                          defaultChecked={itemizedEqualSplit ? true : item.isShared}
+                          disabled={itemizedEqualSplit}
                         />
                         Shared item
                       </label>
@@ -460,28 +479,38 @@ export function NewExpenseForm({
                       />
                     </div>
 
-                    <div className="space-y-1">
-                      <p className="text-xs font-medium text-slate-600">Pre-assign users (optional)</p>
-                      <div className="grid gap-2 sm:grid-cols-2">
-                        {members.map((member) => {
-                          const label = member.profiles?.full_name || member.profiles?.email || 'Unknown';
-                          const checked = item.assigneeUserIds.includes(member.user_id);
-                          return (
-                            <label key={`${index}-${member.user_id}`} className="inline-flex items-center gap-2 text-xs text-slate-700">
-                              <input
-                                type="checkbox"
-                                name={`item_${index}_assignee_${member.user_id}`}
-                                defaultChecked={checked}
-                              />
-                              {label}
-                            </label>
-                          );
-                        })}
-                      </div>
+                    {itemizedEqualSplit ? (
                       <p className="text-xs text-slate-500">
-                        Non-shared items allow one assignee. Shared items split equally across selected assignees.
+                        {tx(
+                          locale,
+                          'Equal itemized mode is enabled: this item will be shared by every current group member.',
+                          'El modo itemizado igual está activado: este artículo se compartirá entre todos los miembros actuales del grupo.',
+                        )}
                       </p>
-                    </div>
+                    ) : (
+                      <div className="space-y-1">
+                        <p className="text-xs font-medium text-slate-600">Pre-assign users (optional)</p>
+                        <div className="grid gap-2 sm:grid-cols-2">
+                          {members.map((member) => {
+                            const label = member.profiles?.full_name || member.profiles?.email || 'Unknown';
+                            const checked = item.assigneeUserIds.includes(member.user_id);
+                            return (
+                              <label key={`${index}-${member.user_id}`} className="inline-flex items-center gap-2 text-xs text-slate-700">
+                                <input
+                                  type="checkbox"
+                                  name={`item_${index}_assignee_${member.user_id}`}
+                                  defaultChecked={checked}
+                                />
+                                {label}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        <p className="text-xs text-slate-500">
+                          Non-shared items allow one assignee. Shared items split equally across selected assignees.
+                        </p>
+                      </div>
+                    )}
                   </div>
                 );
               })}

@@ -95,6 +95,58 @@ describe('computeItemizedExpenseBalances', () => {
     ]);
   });
 
+  it('allows more claimers than quantity on shared items', () => {
+    const { result, error } = computeItemizedExpenseBalances(
+      [
+        {
+          itemId: 'item-1',
+          name: 'Soda pack',
+          unitAmountCents: 250,
+          quantity: 2,
+          isShared: true,
+          sortOrder: 0,
+        },
+      ],
+      [
+        { itemId: 'item-1', userId: 'u1' },
+        { itemId: 'item-1', userId: 'u2' },
+        { itemId: 'item-1', userId: 'u3' },
+        { itemId: 'item-1', userId: 'u4' },
+      ],
+      0,
+    );
+
+    expect(error).toBeNull();
+    expect(result?.subtotalAmountCents).toBe(500);
+    expect(result?.assignedAmountCents).toBe(500);
+    expect(result?.participantShares).toEqual([
+      {
+        userId: 'u1',
+        shareAmountCents: 125,
+        sharePercentage: null,
+        inputAmountCents: null,
+      },
+      {
+        userId: 'u2',
+        shareAmountCents: 125,
+        sharePercentage: null,
+        inputAmountCents: null,
+      },
+      {
+        userId: 'u3',
+        shareAmountCents: 125,
+        sharePercentage: null,
+        inputAmountCents: null,
+      },
+      {
+        userId: 'u4',
+        shareAmountCents: 125,
+        sharePercentage: null,
+        inputAmountCents: null,
+      },
+    ]);
+  });
+
   it('rejects multiple claimants for non-shared items', () => {
     const { result, error } = computeItemizedExpenseBalances(
       [
