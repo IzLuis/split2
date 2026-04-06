@@ -113,7 +113,7 @@ function getRawValues(formData: FormData): CreateExpenseFormState {
     amount: String(formData.get('amount') ?? ''),
     tipPercentage: String(formData.get('tipPercentage') ?? ''),
     deliveryFee: String(formData.get('deliveryFee') ?? ''),
-    currency: String(formData.get('currency') ?? 'USD'),
+    currency: String(formData.get('currency') ?? 'MXN'),
     eventId: String(formData.get('eventId') ?? ''),
     newEventName: String(formData.get('newEventName') ?? ''),
     newEventColor: String(formData.get('newEventColor') ?? ''),

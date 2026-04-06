@@ -30,7 +30,7 @@ export default async function NewExpensePage({
       groupId={groupId}
       members={members}
       availableEvents={events}
-      defaultCurrency={(group.default_currency ?? 'USD') as 'USD' | 'MXN'}
+      defaultCurrency="MXN"
       locale={locale}
     />
   );

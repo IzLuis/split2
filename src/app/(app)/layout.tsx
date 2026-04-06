@@ -1,12 +1,23 @@
 import Link from 'next/link';
-import { ensureProfile } from '@/lib/auth';
+import { ensureProfileAndClient } from '@/lib/auth';
 import { getRequestLocale } from '@/lib/i18n/server';
 import { tx } from '@/lib/i18n/shared';
 import { signOutAction } from './app/actions';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const user = await ensureProfile();
+  const { user, supabase } = await ensureProfileAndClient();
   const locale = await getRequestLocale();
+  let incomingFriendRequests = 0;
+
+  const pendingIncoming = await supabase
+    .from('friend_requests')
+    .select('id', { count: 'exact', head: true })
+    .eq('status', 'pending')
+    .eq('addressee_id', user.id);
+
+  if (!pendingIncoming.error) {
+    incomingFriendRequests = pendingIncoming.count ?? 0;
+  }
 
   return (
     <div className="app-shell-bg min-h-screen">
@@ -19,9 +30,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             <span className="hidden text-sm text-slate-600 sm:inline">{user.email}</span>
             <Link
               href="/app/friends"
-              className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
+              className="relative rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
             >
               {tx(locale, 'Friends', 'Amigos')}
+              {incomingFriendRequests > 0 ? (
+                <span className="absolute -right-2 -top-2 inline-flex min-w-5 items-center justify-center rounded-full bg-rose-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                  {incomingFriendRequests > 9 ? '9+' : incomingFriendRequests}
+                </span>
+              ) : null}
             </Link>
             <Link
               href="/app/profile"
