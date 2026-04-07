@@ -5,6 +5,7 @@ import { buildActionResult, type ActionResult } from '@/lib/action-result';
 import { ensureProfileAndClient } from '@/lib/auth';
 import { computeShares } from '@/lib/domain/splits';
 import { applyEvenFeeToShares, applyTipToShares, parseTipPercentage } from '@/lib/domain/tips';
+import { canUserEditExpense } from '@/lib/expense-permissions';
 import { resolveExpenseEventForSave } from '@/lib/expense-events';
 import { getGroupMembers } from '@/lib/group-data';
 import { resolveLocale, tx, type Locale } from '@/lib/i18n/shared';
@@ -106,6 +107,7 @@ function translateExpenseMessage(locale: Locale, message: string) {
     'Percentages must add up to 100.': 'Los porcentajes deben sumar 100.',
     'Add at least one line item for an itemized expense.': 'Agrega al menos un artículo para un gasto itemizado.',
     'Expense deleted successfully.': 'Gasto eliminado correctamente.',
+    'Expense not found.': 'No se encontró el gasto.',
   };
 
   return locale === 'es' ? (dictionary[normalized] ?? normalized) : normalized;
@@ -206,6 +208,18 @@ export async function updateExpenseAction(
   }
 
   const { user, supabase } = await ensureProfileAndClient();
+  const editPermission = await canUserEditExpense(supabase, groupId, expenseId, user.id);
+  if (!editPermission.allowed) {
+    return buildActionResult({
+      success: false,
+      message: translateExpenseMessage(
+        locale,
+        editPermission.reason ?? "You're not authorized to do this.",
+      ),
+      values: rawValues,
+    });
+  }
+
   const tipParsed = parseTipPercentage(rawValues.tipPercentage);
   if (tipParsed.error) {
     return buildActionResult({
@@ -525,7 +539,18 @@ export async function deleteExpenseAction(
 ): Promise<DeleteExpenseActionState> {
   void prevState;
   const locale = resolveLocale(String(formData.get('locale') ?? 'en'));
-  const { supabase } = await ensureProfileAndClient();
+  const { user, supabase } = await ensureProfileAndClient();
+  const editPermission = await canUserEditExpense(supabase, groupId, expenseId, user.id);
+  if (!editPermission.allowed) {
+    return buildActionResult({
+      success: false,
+      message: translateExpenseMessage(
+        locale,
+        editPermission.reason ?? "You're not authorized to do this.",
+      ),
+      values: {},
+    });
+  }
 
   const { error } = await supabase
     .from('expenses')

@@ -35,6 +35,7 @@ export default async function ExpenseDetailPage({
       tip_percentage,
       tip_amount_cents,
       delivery_fee_cents,
+      created_by,
       event:expense_events!expenses_event_id_fkey (
         id,
         name,
@@ -164,6 +165,28 @@ export default async function ExpenseDetailPage({
     }
   }
 
+  const currentMembership = members.find((member) => member.user_id === user.id);
+  const canEditExpense = expense.created_by === user.id || currentMembership?.role === 'owner';
+  const isGlobalEqualItemizedSplit = (() => {
+    if (!expense.is_itemized || items.length === 0) {
+      return false;
+    }
+    if (!items.every((item) => item.is_shared)) {
+      return false;
+    }
+    const firstClaimers = [...new Set(claimersByItemId.get(items[0].id) ?? [])].sort();
+    if (firstClaimers.length === 0) {
+      return false;
+    }
+
+    const serialized = firstClaimers.join(',');
+    return items.every((item) => {
+      const claimers = [...new Set(claimersByItemId.get(item.id) ?? [])].sort();
+      return claimers.join(',') === serialized;
+    });
+  })();
+  const showGlobalEqualRoundingNote = isGlobalEqualItemizedSplit && unassignedFromParticipants > 0;
+
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -186,12 +209,14 @@ export default async function ExpenseDetailPage({
             </span>
           ) : null}
         </div>
-        <Link
-          href={`/app/groups/${groupId}/expenses/${expenseId}/edit`}
-          className="inline-flex rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-100"
-        >
-          {tx(locale, 'Edit expense', 'Editar gasto')}
-        </Link>
+        {canEditExpense ? (
+          <Link
+            href={`/app/groups/${groupId}/expenses/${expenseId}/edit`}
+            className="inline-flex rounded-md border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 transition hover:-translate-y-0.5 hover:bg-slate-100"
+          >
+            {tx(locale, 'Edit expense', 'Editar gasto')}
+          </Link>
+        ) : null}
       </div>
 
       <section className="rounded-xl border border-slate-200 bg-white/95 p-5 shadow-sm">
@@ -256,6 +281,15 @@ export default async function ExpenseDetailPage({
                   {formatCurrency(unassignedFromParticipants, expense.currency)}
                 </span>
               </p>
+              {showGlobalEqualRoundingNote ? (
+                <p className="text-xs text-amber-700 sm:col-span-2">
+                  {tx(
+                    locale,
+                    'Equal split rounding applied; remaining cents stay unassigned.',
+                    'Se aplicó redondeo en la división igual; los centavos restantes quedan sin asignar.',
+                  )}
+                </p>
+              ) : null}
             </>
           ) : null}
         </div>

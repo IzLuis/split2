@@ -1,4 +1,5 @@
 import { ensureProfileAndClient } from '@/lib/auth';
+import { canUserEditExpense } from '@/lib/expense-permissions';
 import { DEFAULT_EXPENSE_EVENT_COLOR, getGroupExpenseEvents } from '@/lib/expense-events';
 import { getGroupMembers } from '@/lib/group-data';
 import { getRequestLocale } from '@/lib/i18n/server';
@@ -57,7 +58,11 @@ export default async function EditExpensePage({
 }) {
   const locale = await getRequestLocale();
   const { groupId, expenseId } = await params;
-  const { supabase } = await ensureProfileAndClient();
+  const { user, supabase } = await ensureProfileAndClient();
+  const editPermission = await canUserEditExpense(supabase, groupId, expenseId, user.id);
+  if (!editPermission.allowed) {
+    redirect(`/app/groups/${groupId}/expenses/${expenseId}`);
+  }
 
   const [members, events, expenseResult] = await Promise.all([
     getGroupMembers(supabase, groupId),

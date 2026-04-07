@@ -5,8 +5,6 @@ import {
   type ItemizedExpenseClaimInput,
   type ItemizedExpenseItemInput,
 } from '@/lib/domain/itemized';
-import { computeShares } from '@/lib/domain/splits';
-import { applyEvenFeeToShares, applyTipToShares } from '@/lib/domain/tips';
 import { toCents } from '@/lib/utils';
 
 export type ItemizedFormItemValue = {
@@ -206,31 +204,26 @@ export function computeItemizedExpenseFromNormalizedItems(
 
   if (canUseGlobalEqualSplit) {
     const equalParticipantIds = sortedAssigneesByItem[0] ?? [];
-    const equalSplit = computeShares(
-      'equal',
-      subtotalAmountCents,
-      equalParticipantIds.map((userId) => ({ userId })),
-    );
+    const participantCount = equalParticipantIds.length;
+    const tipAmountCents = tipPercentage > 0
+      ? Math.round((subtotalAmountCents * tipPercentage) / 100)
+      : 0;
+    const totalAmountCents = subtotalAmountCents + tipAmountCents + normalizedDeliveryFee;
 
-    if (equalSplit.error) {
-      return { summary: null, error: equalSplit.error };
-    }
+    const equalBaseShareCents = participantCount > 0
+      ? Math.floor(subtotalAmountCents / participantCount)
+      : 0;
+    const equalFinalShareCents = participantCount > 0
+      ? Math.floor(totalAmountCents / participantCount)
+      : 0;
 
-    const sharesWithTip = applyTipToShares(equalSplit.shares, tipPercentage);
-    const sharesWithFee = applyEvenFeeToShares(sharesWithTip.shares, normalizedDeliveryFee);
-    const totalAmountCents = subtotalAmountCents + sharesWithTip.tipAmountCents + normalizedDeliveryFee;
-    const assignedAmountCents = sharesWithFee.shares.reduce(
-      (acc, share) => acc + share.shareAmountCents,
-      0,
-    );
+    const assignedAmountCents = equalFinalShareCents * participantCount;
     const unassignedAmountCents = Math.max(totalAmountCents - assignedAmountCents, 0);
 
-    const participants: ItemizedParticipantRow[] = sharesWithFee.shares.map((share) => ({
-      user_id: share.userId,
-      base_share_amount_cents:
-        equalSplit.shares.find((baseShare) => baseShare.userId === share.userId)?.shareAmountCents
-        ?? 0,
-      share_amount_cents: share.shareAmountCents,
+    const participants: ItemizedParticipantRow[] = equalParticipantIds.map((userId) => ({
+      user_id: userId,
+      base_share_amount_cents: equalBaseShareCents,
+      share_amount_cents: equalFinalShareCents,
       share_percentage: null,
       input_amount_cents: null,
     }));
@@ -239,7 +232,7 @@ export function computeItemizedExpenseFromNormalizedItems(
       error: null,
       summary: {
         subtotalAmountCents,
-        tipAmountCents: sharesWithTip.tipAmountCents,
+        tipAmountCents,
         deliveryFeeAmountCents: normalizedDeliveryFee,
         totalAmountCents,
         assignedAmountCents,
