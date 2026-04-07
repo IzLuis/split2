@@ -106,14 +106,24 @@ export default async function ExpenseDetailPage({
     (acc: number, participant: { share_amount_cents: number }) => acc + participant.share_amount_cents,
     0,
   );
-  const unassignedFromParticipants = expense.is_itemized
+  const roundingDeltaFromParticipants = expense.is_itemized
     ? Math.max(expense.total_amount_cents - assignedFromParticipants, 0)
     : 0;
+  const unassignedForStatus = expense.is_itemized
+    ? Math.max(
+      expense.unassigned_amount_cents
+      ?? Math.max(expense.total_amount_cents - assignedFromParticipants, 0),
+      0,
+    )
+    : 0;
+  const assignedForStatus = expense.is_itemized
+    ? Math.max(expense.total_amount_cents - unassignedForStatus, 0)
+    : assignedFromParticipants;
   const derivedItemizationStatus = !expense.is_itemized
     ? 'not_itemized'
-    : assignedFromParticipants <= 0
+    : assignedForStatus <= 0
       ? 'open'
-      : unassignedFromParticipants <= 0
+      : unassignedForStatus <= 0
         ? 'fully_assigned'
         : 'partially_assigned';
   const splitTypeLabel = (() => {
@@ -185,7 +195,9 @@ export default async function ExpenseDetailPage({
       return claimers.join(',') === serialized;
     });
   })();
-  const showGlobalEqualRoundingNote = isGlobalEqualItemizedSplit && unassignedFromParticipants > 0;
+  const showGlobalEqualRoundingNote = isGlobalEqualItemizedSplit
+    && unassignedForStatus === 0
+    && roundingDeltaFromParticipants > 0;
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5">
@@ -272,21 +284,21 @@ export default async function ExpenseDetailPage({
               <p className="text-sm">
                 <span className="text-slate-500">{tx(locale, 'Assigned total', 'Total asignado')}:</span>{' '}
                 <span className="font-medium text-slate-900">
-                  {formatCurrency(assignedFromParticipants, expense.currency)}
+                  {formatCurrency(assignedForStatus, expense.currency)}
                 </span>
               </p>
               <p className="text-sm">
                 <span className="text-slate-500">{tx(locale, 'Unassigned total', 'Total sin asignar')}:</span>{' '}
                 <span className="font-medium text-amber-700">
-                  {formatCurrency(unassignedFromParticipants, expense.currency)}
+                  {formatCurrency(unassignedForStatus, expense.currency)}
                 </span>
               </p>
               {showGlobalEqualRoundingNote ? (
                 <p className="text-xs text-amber-700 sm:col-span-2">
                   {tx(
                     locale,
-                    'Equal split rounding applied; remaining cents stay unassigned.',
-                    'Se aplicó redondeo en la división igual; los centavos restantes quedan sin asignar.',
+                    'Equal split rounding applied; remaining cents are ignored to keep shares equal.',
+                    'Se aplicó redondeo en la división igual; los centavos restantes se ignoran para mantener partes iguales.',
                   )}
                 </p>
               ) : null}

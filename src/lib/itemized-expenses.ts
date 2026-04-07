@@ -217,9 +217,6 @@ export function computeItemizedExpenseFromNormalizedItems(
       ? Math.floor(totalAmountCents / participantCount)
       : 0;
 
-    const assignedAmountCents = equalFinalShareCents * participantCount;
-    const unassignedAmountCents = Math.max(totalAmountCents - assignedAmountCents, 0);
-
     const participants: ItemizedParticipantRow[] = equalParticipantIds.map((userId) => ({
       user_id: userId,
       base_share_amount_cents: equalBaseShareCents,
@@ -235,9 +232,11 @@ export function computeItemizedExpenseFromNormalizedItems(
         tipAmountCents,
         deliveryFeeAmountCents: normalizedDeliveryFee,
         totalAmountCents,
-        assignedAmountCents,
-        unassignedAmountCents,
-        itemizationStatus: getItemizationStatus(assignedAmountCents, unassignedAmountCents),
+        // For global equal itemized split we floor each participant share.
+        // Remaining cents are a rounding delta, not unresolved/unassigned debt.
+        assignedAmountCents: totalAmountCents,
+        unassignedAmountCents: 0,
+        itemizationStatus: getItemizationStatus(totalAmountCents, 0),
         participants,
       },
     };

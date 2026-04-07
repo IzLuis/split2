@@ -42,19 +42,23 @@ export default async function GroupDetailPage({
       (acc, participant) => acc + participant.share_amount_cents,
       0,
     );
-    const unassignedFromParticipants = expense.is_itemized
-      ? Math.max(expense.total_amount_cents - assignedFromParticipants, 0)
+    const unassignedForStatus = expense.is_itemized
+      ? Math.max(
+        expense.unassigned_amount_cents
+        ?? Math.max(expense.total_amount_cents - assignedFromParticipants, 0),
+        0,
+      )
       : 0;
 
     return {
       assignedFromParticipants,
-      unassignedFromParticipants,
+      unassignedForStatus,
     };
   };
 
   const unresolvedItemized = summary.expenses.filter((expense) => {
     const derived = getDerivedItemized(expense);
-    return expense.is_itemized && derived.unassignedFromParticipants > 0;
+    return expense.is_itemized && derived.unassignedForStatus > 0;
   });
   const unresolvedItemizedMessage =
     unresolvedItemized.length === 1
@@ -333,8 +337,8 @@ export default async function GroupDetailPage({
                     {expense.is_itemized ? (
                       <p className="text-xs text-slate-500">
                         {tx(locale, 'Itemized expense', 'Gasto itemizado')}
-                        {derived.unassignedFromParticipants > 0
-                          ? ` • ${tx(locale, 'Unassigned', 'Sin asignar')} ${formatCurrency(derived.unassignedFromParticipants, expense.currency)}`
+                        {derived.unassignedForStatus > 0
+                          ? ` • ${tx(locale, 'Unassigned', 'Sin asignar')} ${formatCurrency(derived.unassignedForStatus, expense.currency)}`
                           : ` • ${tx(locale, 'Fully assigned', 'Completamente asignado')}`}
                       </p>
                     ) : null}
