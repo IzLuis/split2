@@ -168,7 +168,10 @@ export default async function ExpenseDetailPage({
     <div className="mx-auto w-full max-w-2xl space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link href={`/app/groups/${groupId}`} className="text-sm text-slate-600 underline">
+          <Link
+            href={`/app/groups/${groupId}`}
+            className="inline-flex min-h-10 items-center rounded-md px-3 text-base font-medium text-slate-700 underline-offset-4 transition hover:bg-slate-100 hover:underline"
+          >
             {tx(locale, 'Back to group', 'Volver al grupo')}
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">{expense.title}</h1>

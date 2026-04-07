@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { buildActionResult, type ActionResult } from '@/lib/action-result';
 import { ensureProfile } from '@/lib/auth';
 import { getGroupMembers } from '@/lib/group-data';
+import { resolveLocale } from '@/lib/i18n/shared';
 import { createSupabaseServerClient } from '@/lib/supabase/server';
 import { toCents } from '@/lib/utils';
 import { createSettlementSchema } from '@/lib/validation';
@@ -18,13 +19,31 @@ export type CreateSettlementFormValues = {
 };
 export type CreateSettlementFormState = ActionResult<CreateSettlementFormValues>;
 
+function translateSettlementMessage(locale: 'en' | 'es', message: string) {
+  const dictionary: Record<string, string> = {
+    'Invalid settlement form.': 'Formulario de pago inválido.',
+    'Amount is required.': 'El monto es obligatorio.',
+    'Use a 3-letter currency code.': 'Usa un código de moneda de 3 letras.',
+    'Date is required.': 'La fecha es obligatoria.',
+    'Payer is required.': 'Quien pagó es obligatorio.',
+    'Receiver is required.': 'Quien recibió es obligatorio.',
+    'Payer and receiver must be different users.': 'Quien pagó y quien recibió deben ser personas diferentes.',
+    'Amount must be greater than 0.': 'El monto debe ser mayor que 0.',
+    'Payer and receiver must belong to this group.': 'Quien pagó y quien recibió deben pertenecer a este grupo.',
+    "You're not authorized to do this.": 'No estás autorizado para hacer esto.',
+    'Settlement recorded successfully.': 'Pago registrado correctamente.',
+  };
+  return locale === 'es' ? (dictionary[message] ?? message) : message;
+}
+
 export async function createSettlementAction(
   _prevState: CreateSettlementFormState,
   formData: FormData,
 ): Promise<CreateSettlementFormState> {
+  const locale = resolveLocale(String(formData.get('locale') ?? 'en'));
   const rawValues = {
     amount: String(formData.get('amount') ?? ''),
-    currency: String(formData.get('currency') ?? 'USD'),
+    currency: String(formData.get('currency') ?? 'MXN'),
     settledOn: String(formData.get('settledOn') ?? ''),
     payerId: String(formData.get('payerId') ?? ''),
     receiverId: String(formData.get('receiverId') ?? ''),
@@ -44,7 +63,10 @@ export async function createSettlementAction(
   if (!validated.success) {
     return buildActionResult({
       success: false,
-      message: validated.error.issues[0]?.message ?? 'Invalid settlement form.',
+      message: translateSettlementMessage(
+        locale,
+        validated.error.issues[0]?.message ?? 'Invalid settlement form.',
+      ),
       values: rawValues,
     });
   }
@@ -52,7 +74,7 @@ export async function createSettlementAction(
   if (validated.data.payerId === validated.data.receiverId) {
     return buildActionResult({
       success: false,
-      message: 'Payer and receiver must be different users.',
+      message: translateSettlementMessage(locale, 'Payer and receiver must be different users.'),
       values: rawValues,
     });
   }
@@ -65,7 +87,7 @@ export async function createSettlementAction(
   if (!amountCents) {
     return buildActionResult({
       success: false,
-      message: 'Amount must be greater than 0.',
+      message: translateSettlementMessage(locale, 'Amount must be greater than 0.'),
       values: rawValues,
     });
   }
@@ -76,7 +98,7 @@ export async function createSettlementAction(
   if (!memberIds.has(validated.data.payerId) || !memberIds.has(validated.data.receiverId)) {
     return buildActionResult({
       success: false,
-      message: 'Payer and receiver must belong to this group.',
+      message: translateSettlementMessage(locale, 'Payer and receiver must belong to this group.'),
       values: rawValues,
     });
   }
@@ -95,7 +117,9 @@ export async function createSettlementAction(
   if (error) {
     return buildActionResult({
       success: false,
-      message: error.message,
+      message: error.message.includes('row-level security policy')
+        ? translateSettlementMessage(locale, "You're not authorized to do this.")
+        : error.message,
       values: rawValues,
     });
   }
@@ -103,7 +127,7 @@ export async function createSettlementAction(
   revalidatePath(`/app/groups/${groupId}`);
   return buildActionResult({
     success: true,
-    message: 'Settlement recorded successfully.',
+    message: translateSettlementMessage(locale, 'Settlement recorded successfully.'),
     values: rawValues,
     redirectTo: `/app/groups/${groupId}`,
   });

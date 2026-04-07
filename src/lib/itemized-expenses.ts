@@ -1,9 +1,12 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import {
   computeItemizedExpenseBalances,
+  getItemizationStatus,
   type ItemizedExpenseClaimInput,
   type ItemizedExpenseItemInput,
 } from '@/lib/domain/itemized';
+import { computeShares } from '@/lib/domain/splits';
+import { applyEvenFeeToShares, applyTipToShares } from '@/lib/domain/tips';
 import { toCents } from '@/lib/utils';
 
 export type ItemizedFormItemValue = {
@@ -189,6 +192,64 @@ export function computeItemizedExpenseFromNormalizedItems(
   } | null;
   error: string | null;
 } {
+  const normalizedDeliveryFee = Math.max(0, Math.floor(deliveryFeeCents));
+  const subtotalAmountCents = items.reduce((acc, item) => acc + item.lineTotalCents, 0);
+  const sortedAssigneesByItem = items.map((item) => [...new Set(item.assigneeUserIds)].sort());
+  const canUseGlobalEqualSplit = (() => {
+    if (items.length === 0) return false;
+    if (!items.every((item) => item.isShared)) return false;
+    const firstAssignees = sortedAssigneesByItem[0] ?? [];
+    if (firstAssignees.length === 0) return false;
+    const serialized = firstAssignees.join(',');
+    return sortedAssigneesByItem.every((assignees) => assignees.join(',') === serialized);
+  })();
+
+  if (canUseGlobalEqualSplit) {
+    const equalParticipantIds = sortedAssigneesByItem[0] ?? [];
+    const equalSplit = computeShares(
+      'equal',
+      subtotalAmountCents,
+      equalParticipantIds.map((userId) => ({ userId })),
+    );
+
+    if (equalSplit.error) {
+      return { summary: null, error: equalSplit.error };
+    }
+
+    const sharesWithTip = applyTipToShares(equalSplit.shares, tipPercentage);
+    const sharesWithFee = applyEvenFeeToShares(sharesWithTip.shares, normalizedDeliveryFee);
+    const totalAmountCents = subtotalAmountCents + sharesWithTip.tipAmountCents + normalizedDeliveryFee;
+    const assignedAmountCents = sharesWithFee.shares.reduce(
+      (acc, share) => acc + share.shareAmountCents,
+      0,
+    );
+    const unassignedAmountCents = Math.max(totalAmountCents - assignedAmountCents, 0);
+
+    const participants: ItemizedParticipantRow[] = sharesWithFee.shares.map((share) => ({
+      user_id: share.userId,
+      base_share_amount_cents:
+        equalSplit.shares.find((baseShare) => baseShare.userId === share.userId)?.shareAmountCents
+        ?? 0,
+      share_amount_cents: share.shareAmountCents,
+      share_percentage: null,
+      input_amount_cents: null,
+    }));
+
+    return {
+      error: null,
+      summary: {
+        subtotalAmountCents,
+        tipAmountCents: sharesWithTip.tipAmountCents,
+        deliveryFeeAmountCents: normalizedDeliveryFee,
+        totalAmountCents,
+        assignedAmountCents,
+        unassignedAmountCents,
+        itemizationStatus: getItemizationStatus(assignedAmountCents, unassignedAmountCents),
+        participants,
+      },
+    };
+  }
+
   const domainItems: ItemizedExpenseItemInput[] = items.map((item) => ({
     itemId: item.itemKey,
     name: item.name,
@@ -207,7 +268,7 @@ export function computeItemizedExpenseFromNormalizedItems(
     domainItems,
     claims,
     tipPercentage,
-    deliveryFeeCents,
+    normalizedDeliveryFee,
   );
   if (error || !result) {
     return { summary: null, error: error ?? 'Could not compute itemized shares.' };

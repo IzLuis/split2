@@ -7,6 +7,7 @@ import { computeShares } from '@/lib/domain/splits';
 import { applyEvenFeeToShares, applyTipToShares, parseTipPercentage } from '@/lib/domain/tips';
 import { resolveExpenseEventForSave } from '@/lib/expense-events';
 import { getGroupMembers } from '@/lib/group-data';
+import { resolveLocale, tx, type Locale } from '@/lib/i18n/shared';
 import {
   assignAllItemsToAllMembers,
   emptyItemizedFormItem,
@@ -34,6 +35,7 @@ export type CreateExpenseFormState = {
   splitType: SplitType;
   isItemized: boolean;
   itemizedEqualSplit: boolean;
+  itemizedEqualParticipantIds: string[];
   items: Array<{
     name: string;
     unitPrice: string;
@@ -54,9 +56,73 @@ export type CreateExpenseFormState = {
 
 export type CreateExpenseActionState = ActionResult<CreateExpenseFormState>;
 
-function toFriendlyWriteError(error: { message: string; code?: string | null } | null | undefined) {
+function translateExpenseMessage(locale: Locale, message: string) {
+  const normalized = message.trim();
+  const issuePatterns: Array<{ pattern: RegExp; translate: (match: RegExpExecArray) => string }> = [
+    {
+      pattern: /^Item (\d+): name is required\.$/,
+      translate: (match) => tx(locale, normalized, `Artículo ${match[1]}: el nombre es obligatorio.`),
+    },
+    {
+      pattern: /^Item (\d+): unit price must be greater than 0\.$/,
+      translate: (match) => tx(locale, normalized, `Artículo ${match[1]}: el precio unitario debe ser mayor a 0.`),
+    },
+    {
+      pattern: /^Item (\d+): quantity must be a whole number greater than 0\.$/,
+      translate: (match) => tx(locale, normalized, `Artículo ${match[1]}: la cantidad debe ser un entero mayor a 0.`),
+    },
+    {
+      pattern: /^Item (\d+): one assignee is not in this group\.$/,
+      translate: (match) => tx(locale, normalized, `Artículo ${match[1]}: uno de los asignados no pertenece al grupo.`),
+    },
+    {
+      pattern: /^Item (\d+): non-shared items can only have one assignee\.$/,
+      translate: (match) => tx(locale, normalized, `Artículo ${match[1]}: los artículos no compartidos solo permiten un asignado.`),
+    },
+  ];
+
+  for (const issuePattern of issuePatterns) {
+    const match = issuePattern.pattern.exec(normalized);
+    if (match) {
+      return issuePattern.translate(match);
+    }
+  }
+
+  const dictionary: Record<string, string> = {
+    'Request failed.': 'La solicitud falló.',
+    "You're not authorized to do this.": 'No estás autorizado para hacer esto.',
+    'Invalid expense form.': 'Formulario de gasto inválido.',
+    'Title must be at least 2 characters.': 'El título debe tener al menos 2 caracteres.',
+    'Amount is required.': 'El monto es obligatorio.',
+    'Use a 3-letter currency code.': 'Usa un código de moneda de 3 letras.',
+    'Date is required.': 'La fecha es obligatoria.',
+    'Paid by is required.': 'Quien pagó es obligatorio.',
+    'Tip percentage must be 0 or greater.': 'La propina % debe ser 0 o mayor.',
+    'Tip percentage is too large.': 'La propina % es demasiado grande.',
+    'Delivery fee must be 0 or greater.': 'El cargo de envío debe ser 0 o mayor.',
+    'Payer must be a group member.': 'Quien pagó debe pertenecer al grupo.',
+    'Select at least one participant for equal itemized split.': 'Selecciona al menos un participante para la división igual itemizada.',
+    'Could not compute itemized shares.': 'No se pudo calcular la división del gasto itemizado.',
+    'Expense created successfully.': 'Gasto creado correctamente.',
+    'Subtotal amount must be greater than 0.': 'El monto subtotal debe ser mayor a 0.',
+    'Select at least one participant.': 'Selecciona al menos un participante.',
+    'At least one participant is required.': 'Se requiere al menos un participante.',
+    'Every participant must have a valid custom amount.': 'Cada participante debe tener un monto personalizado válido.',
+    'Custom amounts must add up to the total amount.': 'Los montos personalizados deben sumar el total.',
+    'Every participant must have a valid percentage.': 'Cada participante debe tener un porcentaje válido.',
+    'Percentages must add up to 100.': 'Los porcentajes deben sumar 100.',
+    'Add at least one line item for an itemized expense.': 'Agrega al menos un artículo para un gasto itemizado.',
+  };
+
+  return locale === 'es' ? (dictionary[normalized] ?? normalized) : normalized;
+}
+
+function toFriendlyWriteError(
+  error: { message: string; code?: string | null } | null | undefined,
+  locale: Locale,
+) {
   if (!error) {
-    return 'Request failed.';
+    return translateExpenseMessage(locale, 'Request failed.');
   }
 
   if (
@@ -64,20 +130,20 @@ function toFriendlyWriteError(error: { message: string; code?: string | null } |
     || error.message.includes('row-level security policy')
     || error.message.toLowerCase().includes('permission denied')
   ) {
-    return "You're not authorized to do this.";
+    return translateExpenseMessage(locale, "You're not authorized to do this.");
   }
 
-  return error.message;
+  return translateExpenseMessage(locale, error.message);
 }
 
-function toFriendlyWriteErrorMessage(message: string) {
+function toFriendlyWriteErrorMessage(message: string, locale: Locale) {
   if (
     message.includes('row-level security policy')
     || message.toLowerCase().includes('permission denied')
   ) {
-    return "You're not authorized to do this.";
+    return translateExpenseMessage(locale, "You're not authorized to do this.");
   }
-  return message;
+  return translateExpenseMessage(locale, message);
 }
 
 function getRawValues(formData: FormData): CreateExpenseFormState {
@@ -124,6 +190,11 @@ function getRawValues(formData: FormData): CreateExpenseFormState {
     splitType: (String(formData.get('splitType') ?? 'equal') as SplitType),
     isItemized: formData.get('isItemized') === 'on',
     itemizedEqualSplit: formData.get('itemizedEqualSplit') === 'on',
+    itemizedEqualParticipantIds: [...new Set(
+      [...formData.keys()]
+        .filter((key) => key.startsWith('itemizedEqualParticipant_'))
+        .map((key) => key.replace('itemizedEqualParticipant_', '')),
+    )],
     items: itemizedItems.length > 0 ? itemizedItems : [emptyItemizedFormItem()],
     participants,
   };
@@ -133,6 +204,7 @@ export async function createExpenseAction(
   _prevState: CreateExpenseActionState,
   formData: FormData,
 ): Promise<CreateExpenseActionState> {
+  const locale = resolveLocale(String(formData.get('locale') ?? 'en'));
   const rawValues = getRawValues(formData);
 
   const validated = createExpenseSchema.safeParse({
@@ -151,7 +223,10 @@ export async function createExpenseAction(
   if (!validated.success) {
     return buildActionResult({
       success: false,
-      message: validated.error.issues[0]?.message ?? 'Invalid expense form.',
+      message: translateExpenseMessage(
+        locale,
+        validated.error.issues[0]?.message ?? 'Invalid expense form.',
+      ),
       values: rawValues,
     });
   }
@@ -161,14 +236,18 @@ export async function createExpenseAction(
 
   const tipParsed = parseTipPercentage(rawValues.tipPercentage);
   if (tipParsed.error) {
-    return buildActionResult({ success: false, message: tipParsed.error, values: rawValues });
+    return buildActionResult({
+      success: false,
+      message: translateExpenseMessage(locale, tipParsed.error),
+      values: rawValues,
+    });
   }
 
   const deliveryFeeCents = toNonNegativeCents(rawValues.deliveryFee);
   if (deliveryFeeCents === null) {
     return buildActionResult({
       success: false,
-      message: 'Delivery fee must be 0 or greater.',
+      message: translateExpenseMessage(locale, 'Delivery fee must be 0 or greater.'),
       values: rawValues,
     });
   }
@@ -179,7 +258,7 @@ export async function createExpenseAction(
   if (!memberIds.has(validated.data.paidBy)) {
     return buildActionResult({
       success: false,
-      message: 'Payer must be a group member.',
+      message: translateExpenseMessage(locale, 'Payer must be a group member.'),
       values: rawValues,
     });
   }
@@ -202,12 +281,30 @@ export async function createExpenseAction(
   if (rawValues.isItemized) {
     const normalized = normalizeItemizedFormItems(rawValues.items, memberIds);
     if (normalized.error) {
-      return buildActionResult({ success: false, message: normalized.error, values: rawValues });
+      return buildActionResult({
+        success: false,
+        message: translateExpenseMessage(locale, normalized.error),
+        values: rawValues,
+      });
     }
 
     const normalizedItems = rawValues.itemizedEqualSplit
-      ? assignAllItemsToAllMembers(normalized.items, [...memberIds])
+      ? assignAllItemsToAllMembers(
+        normalized.items,
+        rawValues.itemizedEqualParticipantIds.filter((userId) => memberIds.has(userId)),
+      )
       : normalized.items;
+
+    if (rawValues.itemizedEqualSplit && normalizedItems.some((item) => item.assigneeUserIds.length === 0)) {
+      return buildActionResult({
+        success: false,
+        message: translateExpenseMessage(
+          locale,
+          'Select at least one participant for equal itemized split.',
+        ),
+        values: rawValues,
+      });
+    }
 
     const computed = computeItemizedExpenseFromNormalizedItems(
       normalizedItems,
@@ -217,7 +314,10 @@ export async function createExpenseAction(
     if (computed.error || !computed.summary) {
       return buildActionResult({
         success: false,
-        message: computed.error ?? 'Could not compute itemized shares.',
+        message: translateExpenseMessage(
+          locale,
+          computed.error ?? 'Could not compute itemized shares.',
+        ),
         values: rawValues,
       });
     }
@@ -250,7 +350,7 @@ export async function createExpenseAction(
     if (expenseError || !expense) {
       return buildActionResult({
         success: false,
-        message: toFriendlyWriteError(expenseError),
+        message: toFriendlyWriteError(expenseError, locale),
         values: rawValues,
       });
     }
@@ -264,7 +364,7 @@ export async function createExpenseAction(
     if (replaceItems.error) {
       return buildActionResult({
         success: false,
-        message: toFriendlyWriteErrorMessage(replaceItems.error),
+        message: toFriendlyWriteErrorMessage(replaceItems.error, locale),
         values: rawValues,
       });
     }
@@ -281,7 +381,7 @@ export async function createExpenseAction(
       if (participantsError) {
         return buildActionResult({
           success: false,
-          message: toFriendlyWriteError(participantsError),
+          message: toFriendlyWriteError(participantsError, locale),
           values: rawValues,
         });
       }
@@ -290,7 +390,7 @@ export async function createExpenseAction(
     revalidatePath(`/app/groups/${groupId}`);
     return buildActionResult({
       success: true,
-      message: 'Expense created successfully.',
+      message: translateExpenseMessage(locale, 'Expense created successfully.'),
       values: rawValues,
       redirectTo: `/app/groups/${groupId}`,
     });
@@ -300,7 +400,7 @@ export async function createExpenseAction(
   if (!subtotalAmountCents) {
     return buildActionResult({
       success: false,
-      message: 'Subtotal amount must be greater than 0.',
+      message: translateExpenseMessage(locale, 'Subtotal amount must be greater than 0.'),
       values: rawValues,
     });
   }
@@ -324,7 +424,7 @@ export async function createExpenseAction(
   if (participants.length === 0) {
     return buildActionResult({
       success: false,
-      message: 'Select at least one participant.',
+      message: translateExpenseMessage(locale, 'Select at least one participant.'),
       values: rawValues,
     });
   }
@@ -336,7 +436,11 @@ export async function createExpenseAction(
   );
 
   if (shareError) {
-    return buildActionResult({ success: false, message: shareError, values: rawValues });
+    return buildActionResult({
+      success: false,
+      message: translateExpenseMessage(locale, shareError),
+      values: rawValues,
+    });
   }
 
   const sharesWithTip = applyTipToShares(shares, tipParsed.value);
@@ -371,7 +475,7 @@ export async function createExpenseAction(
   if (expenseError || !expense) {
     return buildActionResult({
       success: false,
-      message: toFriendlyWriteError(expenseError),
+      message: toFriendlyWriteError(expenseError, locale),
       values: rawValues,
     });
   }
@@ -395,7 +499,7 @@ export async function createExpenseAction(
   if (participantsError) {
     return buildActionResult({
       success: false,
-      message: toFriendlyWriteError(participantsError),
+      message: toFriendlyWriteError(participantsError, locale),
       values: rawValues,
     });
   }
@@ -403,7 +507,7 @@ export async function createExpenseAction(
   revalidatePath(`/app/groups/${groupId}`);
   return buildActionResult({
     success: true,
-    message: 'Expense created successfully.',
+    message: translateExpenseMessage(locale, 'Expense created successfully.'),
     values: rawValues,
     redirectTo: `/app/groups/${groupId}`,
   });

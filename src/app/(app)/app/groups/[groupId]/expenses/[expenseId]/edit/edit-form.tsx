@@ -116,6 +116,11 @@ export function EditExpenseForm({
   const [splitType, setSplitType] = useState<SplitType>(initialState.values.splitType);
   const [isItemized, setIsItemized] = useState(initialState.values.isItemized);
   const [itemizedEqualSplit, setItemizedEqualSplit] = useState(initialState.values.itemizedEqualSplit);
+  const [itemizedEqualParticipantIds, setItemizedEqualParticipantIds] = useState<string[]>(
+    initialState.values.itemizedEqualParticipantIds.length > 0
+      ? initialState.values.itemizedEqualParticipantIds
+      : members.map((member) => member.user_id),
+  );
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [itemRowCount, setItemRowCount] = useState(Math.max(initialState.values.items.length, 1));
   const pendingReceiptRef = useRef<ReceiptOcrResult | null>(null);
@@ -196,6 +201,7 @@ export function EditExpenseForm({
         action={formAction}
         className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"
       >
+        <input type="hidden" name="locale" value={locale} />
         <label className="block space-y-1">
           <span className="text-sm font-medium text-slate-700">{tx(locale, 'Title', 'Título')}</span>
           <input name="title" required defaultValue={state.values.title} className="w-full rounded-md border border-slate-300 px-3 py-2" />
@@ -288,7 +294,13 @@ export function EditExpenseForm({
               name="itemizedEqualSplit"
               type="checkbox"
               checked={itemizedEqualSplit}
-              onChange={(event) => setItemizedEqualSplit(event.target.checked)}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setItemizedEqualSplit(checked);
+                if (checked && itemizedEqualParticipantIds.length === 0) {
+                  setItemizedEqualParticipantIds(members.map((member) => member.user_id));
+                }
+              }}
             />
             {tx(
               locale,
@@ -296,6 +308,42 @@ export function EditExpenseForm({
               'Dividir gasto itemizado en partes iguales entre todos los miembros actuales del grupo',
             )}
           </label>
+        ) : null}
+
+        {isItemized && itemizedEqualSplit ? (
+          <section className="space-y-2 rounded-md border border-slate-200 p-3">
+            <p className="text-sm font-medium text-slate-700">
+              {tx(locale, 'Participants for equal split', 'Participantes para división igual')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {members.map((member) => {
+                const label =
+                  member.profiles?.full_name
+                  || member.profiles?.email
+                  || tx(locale, 'Unknown', 'Desconocido');
+                const checked = itemizedEqualParticipantIds.includes(member.user_id);
+                return (
+                  <label key={`equal-split-${member.user_id}`} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      name={`itemizedEqualParticipant_${member.user_id}`}
+                      checked={checked}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+                        setItemizedEqualParticipantIds((current) => {
+                          if (enabled) {
+                            return [...new Set([...current, member.user_id])];
+                          }
+                          return current.filter((id) => id !== member.user_id);
+                        });
+                      }}
+                    />
+                    {label}
+                  </label>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -533,6 +581,7 @@ export function EditExpenseForm({
         }}
         className="rounded-xl border border-rose-200 bg-rose-50 p-5"
       >
+        <input type="hidden" name="locale" value={locale} />
         <h2 className="text-sm font-semibold text-rose-700">{tx(locale, 'Danger zone', 'Zona de peligro')}</h2>
         <button type="submit" className="mt-3 rounded-md bg-rose-600 px-3 py-2 text-sm font-medium text-white hover:bg-rose-700">
           {tx(locale, 'Delete expense', 'Eliminar gasto')}

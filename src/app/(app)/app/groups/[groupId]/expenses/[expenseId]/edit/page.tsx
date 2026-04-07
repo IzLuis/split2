@@ -32,6 +32,24 @@ function areItemsAssignedEquallyToAllMembers(
   });
 }
 
+function getGlobalEqualParticipantIds(
+  items: Array<{ isShared: boolean; assigneeUserIds: string[] }>,
+) {
+  if (items.length === 0) {
+    return [] as string[];
+  }
+
+  const normalizedByItem = items.map((item) => [...new Set(item.assigneeUserIds)].sort());
+  const first = normalizedByItem[0] ?? [];
+  if (first.length === 0 || !items.every((item) => item.isShared)) {
+    return [] as string[];
+  }
+
+  const serialized = first.join(',');
+  const allSame = normalizedByItem.every((assignees) => assignees.join(',') === serialized);
+  return allSame ? first : [];
+}
+
 export default async function EditExpensePage({
   params,
 }: {
@@ -122,6 +140,7 @@ export default async function EditExpensePage({
       items,
     )
     : false;
+  const itemizedEqualParticipantIds = expense.is_itemized ? getGlobalEqualParticipantIds(items) : [];
 
   const initialState: EditExpenseFormState = {
     success: false,
@@ -142,6 +161,7 @@ export default async function EditExpensePage({
       splitType: (expense.is_itemized ? 'custom' : expense.split_type),
       isItemized: expense.is_itemized ?? false,
       itemizedEqualSplit,
+      itemizedEqualParticipantIds,
       items,
       participants,
     },

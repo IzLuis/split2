@@ -41,6 +41,7 @@ const initialState: CreateExpenseActionState = {
     splitType: 'equal',
     isItemized: false,
     itemizedEqualSplit: false,
+    itemizedEqualParticipantIds: [],
     items: [emptyItemizedFormItem()],
     participants: {},
   },
@@ -50,43 +51,49 @@ function MemberRow({
   member,
   splitType,
   values,
+  locale,
 }: {
   member: GroupMember;
   splitType: SplitType;
   values: CreateExpenseFormState;
+  locale: Locale;
 }) {
   const participantState = values.participants[member.user_id];
+  const showAmount = splitType === 'custom';
+  const showPercentage = splitType === 'percentage';
 
   return (
-    <div className="grid gap-2 rounded-md border border-slate-200 p-3 sm:grid-cols-4">
-      <label className="flex items-center gap-2 text-sm text-slate-700 sm:col-span-2">
+    <div className={`grid gap-2 rounded-md border border-slate-200 p-3 ${showAmount || showPercentage ? 'sm:grid-cols-3' : 'sm:grid-cols-1'}`}>
+      <label className={`flex items-center gap-2 text-sm text-slate-700 ${showAmount || showPercentage ? 'sm:col-span-2' : ''}`}>
         <input
           type="checkbox"
           name={`participant_${member.user_id}_included`}
           defaultChecked={participantState?.included ?? true}
         />
-        {member.profiles?.full_name || member.profiles?.email || 'Unknown'}
+        {member.profiles?.full_name || member.profiles?.email || tx(locale, 'Unknown', 'Desconocido')}
       </label>
-      <input
-        name={`participant_${member.user_id}_amount`}
-        defaultValue={participantState?.amount ?? ''}
-        type="number"
-        min="0"
-        step="0.01"
-        placeholder="Custom amount"
-        disabled={splitType !== 'custom'}
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-100"
-      />
-      <input
-        name={`participant_${member.user_id}_percentage`}
-        defaultValue={participantState?.percentage ?? ''}
-        type="number"
-        min="0"
-        step="0.001"
-        placeholder="%"
-        disabled={splitType !== 'percentage'}
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm disabled:bg-slate-100"
-      />
+      {showAmount ? (
+        <input
+          name={`participant_${member.user_id}_amount`}
+          defaultValue={participantState?.amount ?? ''}
+          type="number"
+          min="0"
+          step="0.01"
+          placeholder={tx(locale, 'Custom amount', 'Monto personalizado')}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        />
+      ) : null}
+      {showPercentage ? (
+        <input
+          name={`participant_${member.user_id}_percentage`}
+          defaultValue={participantState?.percentage ?? ''}
+          type="number"
+          min="0"
+          step="0.001"
+          placeholder={tx(locale, 'Percentage', 'Porcentaje')}
+          className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        />
+      ) : null}
     </div>
   );
 }
@@ -134,6 +141,11 @@ export function NewExpenseForm({
   const [splitType, setSplitType] = useState<SplitType>(state.values.splitType);
   const [isItemized, setIsItemized] = useState(state.values.isItemized);
   const [itemizedEqualSplit, setItemizedEqualSplit] = useState(state.values.itemizedEqualSplit);
+  const [itemizedEqualParticipantIds, setItemizedEqualParticipantIds] = useState<string[]>(
+    state.values.itemizedEqualParticipantIds.length > 0
+      ? state.values.itemizedEqualParticipantIds
+      : members.map((member) => member.user_id),
+  );
   const [isCreatingEvent, setIsCreatingEvent] = useState(false);
   const [itemRowCount, setItemRowCount] = useState(Math.max(state.values.items.length, 1));
   const pendingReceiptRef = useRef<ReceiptOcrResult | null>(null);
@@ -208,6 +220,7 @@ export function NewExpenseForm({
         className="space-y-4 rounded-xl border border-slate-200 bg-white p-5"
       >
         <input type="hidden" name="groupId" value={groupId} />
+        <input type="hidden" name="locale" value={locale} />
 
         <label className="block space-y-1">
           <span className="text-sm font-medium text-slate-700">{tx(locale, 'Title', 'Título')}</span>
@@ -312,7 +325,13 @@ export function NewExpenseForm({
               name="itemizedEqualSplit"
               type="checkbox"
               checked={itemizedEqualSplit}
-              onChange={(event) => setItemizedEqualSplit(event.target.checked)}
+              onChange={(event) => {
+                const checked = event.target.checked;
+                setItemizedEqualSplit(checked);
+                if (checked && itemizedEqualParticipantIds.length === 0) {
+                  setItemizedEqualParticipantIds(members.map((member) => member.user_id));
+                }
+              }}
             />
             {tx(
               locale,
@@ -320,6 +339,39 @@ export function NewExpenseForm({
               'Dividir gasto itemizado en partes iguales entre todos los miembros actuales del grupo',
             )}
           </label>
+        ) : null}
+
+        {isItemized && itemizedEqualSplit ? (
+          <section className="space-y-2 rounded-md border border-slate-200 p-3">
+            <p className="text-sm font-medium text-slate-700">
+              {tx(locale, 'Participants for equal split', 'Participantes para división igual')}
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {members.map((member) => {
+                const label = member.profiles?.full_name || member.profiles?.email || 'Unknown';
+                const checked = itemizedEqualParticipantIds.includes(member.user_id);
+                return (
+                  <label key={`equal-split-${member.user_id}`} className="inline-flex items-center gap-2 text-sm text-slate-700">
+                    <input
+                      type="checkbox"
+                      name={`itemizedEqualParticipant_${member.user_id}`}
+                      checked={checked}
+                      onChange={(event) => {
+                        const enabled = event.target.checked;
+                        setItemizedEqualParticipantIds((current) => {
+                          if (enabled) {
+                            return [...new Set([...current, member.user_id])];
+                          }
+                          return current.filter((id) => id !== member.user_id);
+                        });
+                      }}
+                    />
+                    {label}
+                  </label>
+                );
+              })}
+            </div>
+          </section>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-3">
@@ -336,7 +388,13 @@ export function NewExpenseForm({
               className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-slate-300 focus:ring disabled:bg-slate-100"
             />
             {isItemized ? (
-              <p className="text-xs text-slate-500">For itemized expenses, subtotal is calculated from line items.</p>
+              <p className="text-xs text-slate-500">
+                {tx(
+                  locale,
+                  'For itemized expenses, subtotal is calculated from line items.',
+                  'Para gastos itemizados, el subtotal se calcula con los artículos.',
+                )}
+              </p>
             ) : null}
           </label>
 
@@ -519,31 +577,36 @@ export function NewExpenseForm({
         ) : (
           <>
             <label className="block space-y-1">
-              <span className="text-sm font-medium text-slate-700">Split type</span>
+              <span className="text-sm font-medium text-slate-700">{tx(locale, 'Split type', 'Tipo de división')}</span>
               <select
                 name="splitType"
                 value={splitType}
                 onChange={(event) => setSplitType(event.target.value as SplitType)}
                 className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-slate-300 focus:ring"
               >
-                <option value="equal">Equal</option>
-                <option value="custom">Custom amounts</option>
-                <option value="percentage">Percentages</option>
+                <option value="equal">{tx(locale, 'Equal', 'Igual')}</option>
+                <option value="custom">{tx(locale, 'Custom amounts', 'Montos personalizados')}</option>
+                <option value="percentage">{tx(locale, 'Percentages', 'Porcentajes')}</option>
               </select>
             </label>
 
             <div className="space-y-2">
-              <p className="text-sm font-medium text-slate-700">Participants</p>
+              <p className="text-sm font-medium text-slate-700">{tx(locale, 'Participants', 'Participantes')}</p>
               {members.map((member) => (
                 <MemberRow
                   key={member.user_id}
                   member={member}
                   splitType={splitType}
                   values={state.values}
+                  locale={locale}
                 />
               ))}
               <p className="text-xs text-slate-500">
-                For equal split, just choose participants. For custom/percentage, provide values for selected participants.
+                {tx(
+                  locale,
+                  'For equal split, just choose participants. For custom/percentage, provide values for selected participants.',
+                  'Para división igual, solo elige participantes. Para montos personalizados o porcentajes, captura valores para los participantes seleccionados.',
+                )}
               </p>
             </div>
           </>

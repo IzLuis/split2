@@ -107,7 +107,10 @@ export default async function GroupDetailPage({
     <div className="space-y-6">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <Link href="/app" className="text-sm text-slate-600 underline">
+          <Link
+            href="/app"
+            className="inline-flex min-h-10 items-center rounded-md px-3 text-base font-medium text-slate-700 underline-offset-4 transition hover:bg-slate-100 hover:underline"
+          >
             {tx(locale, 'Back to dashboard', 'Volver al panel')}
           </Link>
           <h1 className="mt-2 text-2xl font-semibold text-slate-900">{group.name}</h1>
