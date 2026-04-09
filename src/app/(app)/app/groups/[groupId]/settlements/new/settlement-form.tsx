@@ -6,7 +6,7 @@ import { FormSubmit } from '@/components/form-submit';
 import { PageHeader } from '@/components/page-header';
 import { tx, type Locale } from '@/lib/i18n/shared';
 import type { GroupMember } from '@/lib/types';
-import { displayName, formatCurrency } from '@/lib/utils';
+import { formatCurrency, formatMemberLabel } from '@/lib/utils';
 import { createSettlementAction, type CreateSettlementFormState } from './actions';
 
 const initialState: CreateSettlementFormState = {
@@ -90,7 +90,7 @@ export function NewSettlementForm({
                 return (
                   <li key={debt.receiverUserId}>
                     {tx(locale, 'You owe', 'Debes a')}{' '}
-                    <span className="font-medium">{displayName(receiver?.profiles ?? null)}</span>{' '}
+                    <span className="font-medium">{formatMemberLabel(receiver?.profiles ?? null, locale)}</span>{' '}
                     <span className="font-medium">{formatCurrency(debt.amountCents, defaultCurrency)}</span>
                   </li>
                 );
@@ -132,6 +132,8 @@ export function NewSettlementForm({
               name="settledOn"
               type="date"
               defaultValue={today}
+              lang="es-MX"
+              title="DD/MM/YYYY"
               className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-slate-300 focus:ring"
             />
           </label>
@@ -148,7 +150,7 @@ export function NewSettlementForm({
             >
               {members.map((member) => (
                 <option key={member.user_id} value={member.user_id}>
-                  {displayName(member.profiles)}
+                  {formatMemberLabel(member.profiles, locale)}
                 </option>
               ))}
             </select>
@@ -164,7 +166,7 @@ export function NewSettlementForm({
             >
               {members.map((member) => (
                 <option key={member.user_id} value={member.user_id}>
-                  {displayName(member.profiles)}
+                  {formatMemberLabel(member.profiles, locale)}
                 </option>
               ))}
             </select>

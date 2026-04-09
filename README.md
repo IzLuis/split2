@@ -166,7 +166,7 @@ npm run build -- --webpack
   - split type (`equal`, `custom`, `percentage`)
 - Expense management: edit expense and delete expense.
 - Expense edit permissions:
-  - any active group member can edit expense details (including payer/splits/itemized rows)
+  - only the expense creator or group owner can edit/delete expense details (including payer/splits/itemized rows)
   - original creator is preserved
   - last editor is tracked in DB (`expenses.updated_by`)
 - Split validation:
@@ -182,6 +182,10 @@ npm run build -- --webpack
   - group member add forms support direct email invites
   - if email does not exist, the app creates a placeholder profile and sends Supabase invite email
   - group members show a **Pending** badge until invite acceptance is completed
+- Placeholder members (dummy users):
+  - create temporary members directly in create/edit group forms
+  - temporary members can be replaced later with real users while preserving group references (payer, shares, settlements, claims)
+  - temporary members are visually marked in member-related UIs
 - History:
   - group expense list
   - expense detail page
@@ -189,6 +193,7 @@ npm run build -- --webpack
 - OCR receipt parsing:
   - upload a receipt image in create/edit expense
   - auto-prefill itemized line items, date, currency, subtotal, tip %, and delivery fee
+  - receipt dates are normalized with Mexico day-first preference for ambiguous numeric dates (`DD/MM/YYYY`)
   - detects whether tax is already included (for example, receipts that say `IVA incluido`)
   - only maps tax into delivery fee when tax is not included
   - totals are normalized so extracted items + adjustments align with receipt total when possible
@@ -207,7 +212,8 @@ npm run build -- --webpack
   - bilingual UI support (English + Spanish)
   - Spanish copy is tuned for Mexican/Latin American usage
   - locale follows browser/system language through `Accept-Language` (server) and document locale (client)
-  - expense detail labels now localize split type, itemization status, and date formatting
+  - date rendering defaults to day-first format (`DD/MM/YYYY`)
+  - expense detail labels localize split type, itemization status, and date formatting
 - Motion polish:
   - Events dropdown uses a smooth accordion-style reveal/collapse animation (respects reduced-motion)
   - subtle hover-lift motion on key group/expense cards

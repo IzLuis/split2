@@ -16,6 +16,7 @@ import {
   type ReceiptOcrResult,
 } from '@/lib/receipt-ocr';
 import type { ExpenseEvent, GroupMember, SplitType } from '@/lib/types';
+import { formatMemberLabel } from '@/lib/utils';
 import {
   createExpenseAction,
   type CreateExpenseActionState,
@@ -70,7 +71,7 @@ function MemberRow({
           name={`participant_${member.user_id}_included`}
           defaultChecked={participantState?.included ?? true}
         />
-        {member.profiles?.full_name || member.profiles?.email || tx(locale, 'Unknown', 'Desconocido')}
+        {formatMemberLabel(member.profiles, locale)}
       </label>
       {showAmount ? (
         <input
@@ -348,7 +349,7 @@ export function NewExpenseForm({
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {members.map((member) => {
-                const label = member.profiles?.full_name || member.profiles?.email || 'Unknown';
+                const label = formatMemberLabel(member.profiles, locale);
                 const checked = itemizedEqualParticipantIds.includes(member.user_id);
                 return (
                   <label key={`equal-split-${member.user_id}`} className="inline-flex items-center gap-2 text-sm text-slate-700">
@@ -440,6 +441,8 @@ export function NewExpenseForm({
               name="expenseDate"
               type="date"
               defaultValue={today}
+              lang="es-MX"
+              title="DD/MM/YYYY"
               className="w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-slate-300 focus:ring"
             />
           </label>
@@ -455,7 +458,7 @@ export function NewExpenseForm({
           >
             {members.map((member) => (
               <option key={member.user_id} value={member.user_id}>
-                {member.profiles?.full_name || member.profiles?.email || 'Unknown'}
+                {formatMemberLabel(member.profiles, locale)}
               </option>
             ))}
           </select>
@@ -550,7 +553,7 @@ export function NewExpenseForm({
                         <p className="text-xs font-medium text-slate-600">Pre-assign users (optional)</p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {members.map((member) => {
-                            const label = member.profiles?.full_name || member.profiles?.email || 'Unknown';
+                            const label = formatMemberLabel(member.profiles, locale);
                             const checked = item.assigneeUserIds.includes(member.user_id);
                             return (
                               <label key={`${index}-${member.user_id}`} className="inline-flex items-center gap-2 text-xs text-slate-700">

@@ -5,6 +5,7 @@ export type FriendProfile = {
   email: string;
   full_name: string | null;
   username: string | null;
+  is_dummy?: boolean;
 };
 
 export type FriendRequestWithProfiles = {
@@ -41,6 +42,7 @@ function normalizeProfile(input: unknown): FriendProfile | null {
     email: row.email,
     full_name: typeof row.full_name === 'string' ? row.full_name : null,
     username: typeof row.username === 'string' ? row.username : null,
+    is_dummy: false,
   };
 }
 

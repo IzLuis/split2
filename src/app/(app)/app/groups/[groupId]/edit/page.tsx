@@ -27,9 +27,14 @@ export default async function EditGroupPage({
 
   const profileMap = new Map<string, FriendProfile>();
   for (const friend of friendProfiles) {
-    profileMap.set(friend.email.toLowerCase(), friend);
+    if (!friend.is_dummy) {
+      profileMap.set(friend.email.toLowerCase(), friend);
+    }
   }
   for (const member of members) {
+    if (member.profiles?.is_dummy) {
+      continue;
+    }
     const email = member.profiles?.email?.toLowerCase();
     if (!email || email === user.email?.toLowerCase()) {
       continue;
@@ -41,6 +46,7 @@ export default async function EditGroupPage({
         email,
         full_name: member.profiles?.full_name ?? null,
         username: null,
+        is_dummy: false,
       });
     }
   }
@@ -50,6 +56,8 @@ export default async function EditGroupPage({
     const bLabel = (b.full_name?.trim() || b.username?.trim() || b.email).toLowerCase();
     return aLabel.localeCompare(bLabel);
   });
+  const profileLabel = (profile: FriendProfile) =>
+    (profile.full_name?.trim() || profile.username?.trim() || profile.email).toLowerCase();
 
   const initialState: EditGroupFormState = {
     success: false,
@@ -61,11 +69,31 @@ export default async function EditGroupPage({
       defaultCurrency: (group.default_currency ?? 'USD') as 'USD' | 'MXN',
       calculationMode: (group.calculation_mode ?? 'normal') as 'normal' | 'reduced',
       memberEmails: members
+        .filter((member) => !member.profiles?.is_dummy)
         .map((member) => member.profiles?.email?.toLowerCase())
         .filter((email): email is string => Boolean(email) && email !== user.email?.toLowerCase()),
       inviteEmails: '',
+      dummyMembers: '',
     },
   };
+
+  const dummyMembers = members.filter((member) => member.profiles?.is_dummy);
+  const replacementProfiles: FriendProfile[] = [
+    ...new Map(
+      members
+        .filter((member) => !member.profiles?.is_dummy)
+        .map((member) => [
+          member.user_id,
+          {
+            id: member.user_id,
+            email: member.profiles?.email ?? '',
+            full_name: member.profiles?.full_name ?? null,
+            username: null,
+            is_dummy: false,
+          } satisfies FriendProfile,
+        ]),
+    ).values(),
+  ].sort((a, b) => profileLabel(a).localeCompare(profileLabel(b)));
 
   const boundUpdate = updateGroupAction.bind(null, groupId);
 
@@ -75,6 +103,8 @@ export default async function EditGroupPage({
       updateAction={boundUpdate}
       initialState={initialState}
       availableProfiles={availableProfiles}
+      dummyMembers={dummyMembers}
+      replacementProfiles={replacementProfiles}
       locale={locale}
     />
   );

@@ -26,7 +26,9 @@ function translateToastMessage(message: string, locale: Locale) {
     return message
       .replace('Members updated:', 'Miembros actualizados:')
       .replace('added', 'agregados')
-      .replace('invited', 'invitados');
+      .replace('invited', 'invitados')
+      .replace('placeholders', 'temporales')
+      .replace('replaced', 'reemplazados');
   }
 
   if (message.startsWith('Could not delete group:')) {

@@ -21,6 +21,7 @@ import {
   type EditExpenseFormState,
 } from './actions';
 import type { ExpenseEvent, GroupMember, SplitType } from '@/lib/types';
+import { formatMemberLabel } from '@/lib/utils';
 
 function MemberRow({
   member,
@@ -43,7 +44,7 @@ function MemberRow({
           name={`participant_${member.user_id}_included`}
           defaultChecked={participantState?.included ?? false}
         />
-        {member.profiles?.full_name || member.profiles?.email || tx(locale, 'Unknown', 'Desconocido')}
+        {formatMemberLabel(member.profiles, locale)}
       </label>
       <input
         name={`participant_${member.user_id}_amount`}
@@ -317,10 +318,7 @@ export function EditExpenseForm({
             </p>
             <div className="grid gap-2 sm:grid-cols-2">
               {members.map((member) => {
-                const label =
-                  member.profiles?.full_name
-                  || member.profiles?.email
-                  || tx(locale, 'Unknown', 'Desconocido');
+                const label = formatMemberLabel(member.profiles, locale);
                 const checked = itemizedEqualParticipantIds.includes(member.user_id);
                 return (
                   <label key={`equal-split-${member.user_id}`} className="inline-flex items-center gap-2 text-sm text-slate-700">
@@ -401,7 +399,15 @@ export function EditExpenseForm({
 
           <label className="block space-y-1">
             <span className="text-sm font-medium text-slate-700">{tx(locale, 'Date', 'Fecha')}</span>
-            <input name="expenseDate" required defaultValue={state.values.expenseDate} type="date" className="w-full rounded-md border border-slate-300 px-3 py-2" />
+            <input
+              name="expenseDate"
+              required
+              defaultValue={state.values.expenseDate}
+              type="date"
+              lang="es-MX"
+              title="DD/MM/YYYY"
+              className="w-full rounded-md border border-slate-300 px-3 py-2"
+            />
           </label>
         </div>
 
@@ -410,7 +416,7 @@ export function EditExpenseForm({
           <select name="paidBy" required defaultValue={state.values.paidBy} className="w-full rounded-md border border-slate-300 px-3 py-2">
             {members.map((member) => (
               <option key={member.user_id} value={member.user_id}>
-                {member.profiles?.full_name || member.profiles?.email || tx(locale, 'Unknown', 'Desconocido')}
+                {formatMemberLabel(member.profiles, locale)}
               </option>
             ))}
           </select>
@@ -505,10 +511,7 @@ export function EditExpenseForm({
                         <p className="text-xs font-medium text-slate-600">{tx(locale, 'Pre-assign users (optional)', 'Preasignar usuarios (opcional)')}</p>
                         <div className="grid gap-2 sm:grid-cols-2">
                           {members.map((member) => {
-                            const label =
-                              member.profiles?.full_name
-                              || member.profiles?.email
-                              || tx(locale, 'Unknown', 'Desconocido');
+                            const label = formatMemberLabel(member.profiles, locale);
                             const checked = item.assigneeUserIds.includes(member.user_id);
                             return (
                               <label key={`${index}-${member.user_id}`} className="inline-flex items-center gap-2 text-xs text-slate-700">

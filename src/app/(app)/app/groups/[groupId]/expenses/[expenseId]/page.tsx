@@ -3,7 +3,7 @@ import { ensureProfileAndClient } from '@/lib/auth';
 import { getGroupMembers } from '@/lib/group-data';
 import { getRequestLocale } from '@/lib/i18n/server';
 import { tx } from '@/lib/i18n/shared';
-import { displayName, formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatMemberLabel } from '@/lib/utils';
 import { claimExpenseItemAction, unclaimExpenseItemAction } from './itemized-actions';
 
 export default async function ExpenseDetailPage({
@@ -16,7 +16,7 @@ export default async function ExpenseDetailPage({
   const { groupId, expenseId } = await params;
   const members = await getGroupMembers(supabase, groupId);
   const memberMap = new Map(
-    members.map((member) => [member.user_id, displayName(member.profiles)]),
+    members.map((member) => [member.user_id, formatMemberLabel(member.profiles, locale)]),
   );
 
   const { data: expense, error } = await supabase

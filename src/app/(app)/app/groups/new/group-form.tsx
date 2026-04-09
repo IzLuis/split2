@@ -20,6 +20,7 @@ const initialState: CreateGroupFormState = {
     calculationMode: 'normal',
     memberEmails: [],
     inviteEmails: '',
+    dummyMembers: '',
   },
 };
 
@@ -140,6 +141,29 @@ export function NewGroupForm({
               locale,
               'If an email does not have an account yet, we will send an invite and mark that member as pending.',
               'Si un correo aún no tiene cuenta, enviaremos una invitación y el miembro quedará como pendiente.',
+            )}
+          </p>
+        </label>
+
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-slate-700">
+            {tx(locale, 'Placeholder members (optional)', 'Miembros temporales (opcional)')}
+          </span>
+          <textarea
+            name="dummyMembers"
+            defaultValue={state.values.dummyMembers}
+            className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2 outline-none ring-slate-300 focus:ring"
+            placeholder={tx(
+              locale,
+              'Alex without app, Cousin Paco',
+              'Alex sin app, Primo Paco',
+            )}
+          />
+          <p className="text-xs text-slate-500">
+            {tx(
+              locale,
+              'Add people without an account yet. You can replace placeholders with real users later.',
+              'Agrega personas sin cuenta todavía. Luego podrás reemplazar los temporales por usuarios reales.',
             )}
           </p>
         </label>

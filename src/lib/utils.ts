@@ -10,12 +10,21 @@ export function formatCurrency(amountCents: number, currency: string) {
 }
 
 export function formatDate(date: string, locale: 'en' | 'es' = 'en') {
-  const formatLocale = locale === 'es' ? 'es-MX' : 'en-US';
+  const formatLocale = locale === 'es' ? 'es-MX' : 'en-GB';
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(date)
+    ? new Date(`${date}T00:00:00.000Z`)
+    : new Date(date);
+
+  if (Number.isNaN(parsed.getTime())) {
+    return date;
+  }
+
   return new Intl.DateTimeFormat(formatLocale, {
     year: 'numeric',
-    month: 'short',
+    month: '2-digit',
     day: '2-digit',
-  }).format(new Date(date));
+    timeZone: 'UTC',
+  }).format(parsed);
 }
 
 export function toCents(amount: string) {
@@ -41,9 +50,25 @@ export function toNonNegativeCents(amount: string) {
   return Math.round(parsed * 100);
 }
 
-export function displayName(profile: { full_name: string | null; email: string } | null) {
+export function displayName(
+  profile: { full_name: string | null; email: string; is_dummy?: boolean | null } | null,
+) {
   if (!profile) {
     return 'Unknown';
   }
-  return profile.full_name?.trim() || profile.email;
+
+  const fallback = profile.is_dummy ? 'Placeholder member' : profile.email;
+  return profile.full_name?.trim() || fallback;
+}
+
+export function formatMemberLabel(
+  profile: { full_name: string | null; email: string; is_dummy?: boolean | null } | null,
+  locale: 'en' | 'es' = 'en',
+) {
+  const label = displayName(profile);
+  if (!profile?.is_dummy) {
+    return label;
+  }
+
+  return locale === 'es' ? `${label} (Temporal)` : `${label} (Placeholder)`;
 }

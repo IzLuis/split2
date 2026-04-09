@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { ensureProfileAndClient } from '@/lib/auth';
 import { getAuthEmailRedirectUrl } from '@/lib/app-url';
 import { buildActionResult, type ActionResult } from '@/lib/action-result';
+import { createDummyGroupMembers, parseDummyMemberNames } from '@/lib/group-dummies';
 import { parseInviteEmails, resolveMemberUserIdsByEmail } from '@/lib/group-invitations';
 import { createGroupSchema } from '@/lib/validation';
 
@@ -14,6 +15,7 @@ export type CreateGroupFormValues = {
   calculationMode: 'normal' | 'reduced';
   memberEmails: string[];
   inviteEmails: string;
+  dummyMembers: string;
 };
 
 export type CreateGroupFormState = ActionResult<CreateGroupFormValues>;
@@ -56,6 +58,7 @@ export async function createGroupAction(
       | 'normal'
       | 'reduced'),
     inviteEmails: String(formData.get('inviteEmails') ?? ''),
+    dummyMembers: String(formData.get('dummyMembers') ?? ''),
     memberEmails: formData
       .getAll('memberEmails')
       .map((value) => String(value).trim().toLowerCase())
@@ -79,6 +82,15 @@ export async function createGroupAction(
 
   const { user, supabase } = await ensureProfileAndClient();
   const inviteRedirectTo = await getAuthEmailRedirectUrl('/login');
+  const parsedDummyNames = parseDummyMemberNames(rawValues.dummyMembers);
+  if (parsedDummyNames.invalid.length > 0) {
+    return buildActionResult({
+      success: false,
+      message: `Invalid placeholder names: ${parsedDummyNames.invalid.join(', ')}`,
+      values: rawValues,
+    });
+  }
+
   const parsedInviteEmails = parseInviteEmails(rawValues.inviteEmails);
   if (parsedInviteEmails.invalid.length > 0) {
     return buildActionResult({
@@ -198,6 +210,20 @@ export async function createGroupAction(
         values: rawValues,
       });
     }
+  }
+
+  const dummyResult = await createDummyGroupMembers({
+    groupId,
+    ownerUserId: user.id,
+    dummyNames: parsedDummyNames.names,
+    supabase,
+  });
+  if (dummyResult.error) {
+    return buildActionResult({
+      success: false,
+      message: dummyResult.error,
+      values: rawValues,
+    });
   }
 
   revalidatePath('/app');

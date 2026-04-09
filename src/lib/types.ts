@@ -15,6 +15,7 @@ export type GroupMember = {
   profiles: {
     full_name: string | null;
     email: string;
+    is_dummy: boolean;
   } | null;
 };
 

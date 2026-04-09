@@ -16,6 +16,10 @@ function isMissingLeftAtColumnError(message: string | undefined) {
   return (message ?? '').includes('column group_members.left_at does not exist');
 }
 
+function isMissingDummyColumnError(message: string | undefined) {
+  return (message ?? '').includes('column profiles.is_dummy does not exist');
+}
+
 export async function getUserGroups(
   supabase: SupabaseClient,
   userId: string,
@@ -137,8 +141,8 @@ export async function getGroupMembers(
     invited_at: string | null;
     accepted_at: string | null;
     profiles:
-      | { full_name: string | null; email: string }
-      | Array<{ full_name: string | null; email: string }>
+      | { full_name: string | null; email: string; is_dummy?: boolean }
+      | Array<{ full_name: string | null; email: string; is_dummy?: boolean }>
       | null;
   }> | null = null;
   let errorMessage: string | null = null;
@@ -153,7 +157,8 @@ export async function getGroupMembers(
       accepted_at,
       profiles!group_members_user_id_fkey (
         full_name,
-        email
+        email,
+        is_dummy
       )
     `,
     )
@@ -164,6 +169,28 @@ export async function getGroupMembers(
   errorMessage = baseResult.error?.message ?? null;
 
   if (errorMessage && isMissingLeftAtColumnError(errorMessage)) {
+    const fallback = await supabase
+      .from('group_members')
+      .select(
+        `
+        user_id,
+        role,
+        invited_at,
+        accepted_at,
+        profiles!group_members_user_id_fkey (
+          full_name,
+          email,
+          is_dummy
+        )
+      `,
+      )
+      .eq('group_id', groupId)
+      .order('created_at', { ascending: true });
+    data = fallback.data as typeof data;
+    errorMessage = fallback.error?.message ?? null;
+  }
+
+  if (errorMessage && isMissingDummyColumnError(errorMessage)) {
     const fallback = await supabase
       .from('group_members')
       .select(
@@ -194,20 +221,30 @@ export async function getGroupMembers(
     invited_at: string | null;
     accepted_at: string | null;
     profiles:
-      | { full_name: string | null; email: string }
-      | Array<{ full_name: string | null; email: string }>
+      | { full_name: string | null; email: string; is_dummy?: boolean }
+      | Array<{ full_name: string | null; email: string; is_dummy?: boolean }>
       | null;
   }>;
 
-  return members.map((member) => ({
-    user_id: member.user_id as string,
-    role: member.role as 'owner' | 'member',
-    invited_at: (member.invited_at as string | null) ?? null,
-    accepted_at: (member.accepted_at as string | null) ?? null,
-    profiles: Array.isArray(member.profiles)
-      ? (member.profiles[0] as { full_name: string | null; email: string } | undefined) ?? null
-      : (member.profiles as { full_name: string | null; email: string } | null),
-  }));
+  return members.map((member) => {
+    const rawProfile = Array.isArray(member.profiles)
+      ? (member.profiles[0] as { full_name: string | null; email: string; is_dummy?: boolean } | undefined) ?? null
+      : (member.profiles as { full_name: string | null; email: string; is_dummy?: boolean } | null);
+
+    return {
+      user_id: member.user_id as string,
+      role: member.role as 'owner' | 'member',
+      invited_at: (member.invited_at as string | null) ?? null,
+      accepted_at: (member.accepted_at as string | null) ?? null,
+      profiles: rawProfile
+        ? {
+          full_name: rawProfile.full_name,
+          email: rawProfile.email,
+          is_dummy: rawProfile.is_dummy === true,
+        }
+        : null,
+    };
+  });
 }
 
 export async function getGroup(supabase: SupabaseClient, groupId: string) {

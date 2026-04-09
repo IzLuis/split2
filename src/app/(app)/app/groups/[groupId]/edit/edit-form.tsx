@@ -6,6 +6,7 @@ import { FormSubmit } from '@/components/form-submit';
 import { PageHeader } from '@/components/page-header';
 import type { FriendProfile } from '@/lib/friends';
 import { tx, type Locale } from '@/lib/i18n/shared';
+import type { GroupMember } from '@/lib/types';
 import { deleteGroupAction, type EditGroupFormState } from './actions';
 
 export function EditGroupForm({
@@ -13,12 +14,16 @@ export function EditGroupForm({
   updateAction,
   initialState,
   availableProfiles,
+  dummyMembers,
+  replacementProfiles,
   locale,
 }: {
   groupId: string;
   updateAction: (state: EditGroupFormState, formData: FormData) => Promise<EditGroupFormState>;
   initialState: EditGroupFormState;
   availableProfiles: FriendProfile[];
+  dummyMembers: GroupMember[];
+  replacementProfiles: FriendProfile[];
   locale: Locale;
 }) {
   const [state, formAction] = useActionState(updateAction, initialState);
@@ -111,6 +116,64 @@ export function EditGroupForm({
             )}
           </p>
         </label>
+
+        <label className="block space-y-1">
+          <span className="text-sm font-medium text-slate-700">
+            {tx(locale, 'Add placeholder members (optional)', 'Agregar miembros temporales (opcional)')}
+          </span>
+          <textarea
+            name="dummyMembers"
+            defaultValue={state.values.dummyMembers}
+            className="min-h-20 w-full rounded-md border border-slate-300 px-3 py-2"
+            placeholder={tx(locale, 'Alex without app, Cousin Paco', 'Alex sin app, Primo Paco')}
+          />
+          <p className="text-xs text-slate-500">
+            {tx(
+              locale,
+              'Placeholders can be replaced later with real users and keep their history.',
+              'Los temporales se pueden reemplazar luego por usuarios reales conservando su historial.',
+            )}
+          </p>
+        </label>
+
+        {dummyMembers.length > 0 ? (
+          <section className="space-y-2 rounded-md border border-amber-200 bg-amber-50/70 p-3">
+            <h3 className="text-sm font-medium text-amber-900">
+              {tx(locale, 'Replace placeholder members', 'Reemplazar miembros temporales')}
+            </h3>
+            <p className="text-xs text-amber-800">
+              {tx(
+                locale,
+                'Choose a real user to transfer each placeholder history.',
+                'Elige un usuario real para transferir el historial de cada temporal.',
+              )}
+            </p>
+            <div className="space-y-2">
+              {dummyMembers.map((dummyMember) => (
+                <label key={dummyMember.user_id} className="block space-y-1 rounded-md border border-amber-200 bg-white px-3 py-2">
+                  <span className="text-sm font-medium text-slate-800">
+                    {(dummyMember.profiles?.full_name || tx(locale, 'Placeholder member', 'Miembro temporal'))}
+                  </span>
+                  <select
+                    name={`replaceDummy_${dummyMember.user_id}`}
+                    defaultValue=""
+                    className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+                  >
+                    <option value="">{tx(locale, 'Keep placeholder', 'Mantener temporal')}</option>
+                    {replacementProfiles.map((profile) => {
+                      const label = profile.full_name?.trim() || profile.username?.trim() || profile.email;
+                      return (
+                        <option key={`${dummyMember.user_id}-${profile.id}`} value={profile.id}>
+                          {label}
+                        </option>
+                      );
+                    })}
+                  </select>
+                </label>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         {!state.success && state.message ? (
           <p className="rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-700">

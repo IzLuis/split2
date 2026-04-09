@@ -5,6 +5,11 @@ import { revalidatePath } from 'next/cache';
 import { buildActionResult, type ActionResult } from '@/lib/action-result';
 import { ensureProfileAndClient } from '@/lib/auth';
 import { getAuthEmailRedirectUrl } from '@/lib/app-url';
+import {
+  createDummyGroupMembers,
+  parseDummyMemberNames,
+  replaceDummyGroupMember,
+} from '@/lib/group-dummies';
 import { parseInviteEmails, resolveMemberUserIdsByEmail } from '@/lib/group-invitations';
 import { createGroupSchema } from '@/lib/validation';
 
@@ -15,12 +20,17 @@ export type EditGroupFormValues = {
   calculationMode: 'normal' | 'reduced';
   memberEmails: string[];
   inviteEmails: string;
+  dummyMembers: string;
 };
 
 export type EditGroupFormState = ActionResult<EditGroupFormValues>;
 
 function isMissingLeftAtColumnError(message: string | undefined) {
   return (message ?? '').includes('column group_members.left_at does not exist');
+}
+
+function isMissingDummyColumnError(message: string | undefined) {
+  return (message ?? '').includes('column profiles.is_dummy does not exist');
 }
 
 export async function updateGroupAction(
@@ -34,6 +44,7 @@ export async function updateGroupAction(
     defaultCurrency: String(formData.get('defaultCurrency') ?? 'USD') as 'USD' | 'MXN',
     calculationMode: String(formData.get('calculationMode') ?? 'normal') as 'normal' | 'reduced',
     inviteEmails: String(formData.get('inviteEmails') ?? ''),
+    dummyMembers: String(formData.get('dummyMembers') ?? ''),
     memberEmails: formData
       .getAll('memberEmails')
       .map((value) => String(value).trim().toLowerCase())
@@ -57,6 +68,22 @@ export async function updateGroupAction(
 
   const { user, supabase } = await ensureProfileAndClient();
   const inviteRedirectTo = await getAuthEmailRedirectUrl('/login');
+  const parsedDummyNames = parseDummyMemberNames(rawValues.dummyMembers);
+  if (parsedDummyNames.invalid.length > 0) {
+    return buildActionResult({
+      success: false,
+      message: `Invalid placeholder names: ${parsedDummyNames.invalid.join(', ')}`,
+      values: rawValues,
+    });
+  }
+
+  const replacementEntries = [...formData.entries()]
+    .filter(([key, value]) => key.startsWith('replaceDummy_') && String(value).trim().length > 0)
+    .map(([key, value]) => ({
+      dummyUserId: key.slice('replaceDummy_'.length),
+      realUserId: String(value).trim(),
+    }))
+    .filter((entry) => entry.dummyUserId.length > 0 && entry.realUserId.length > 0);
 
   const parsedInviteEmails = parseInviteEmails(rawValues.inviteEmails);
   if (parsedInviteEmails.invalid.length > 0) {
@@ -110,18 +137,52 @@ export async function updateGroupAction(
     ...allTargetEmails
       .map((email) => memberResolution.userIdByEmail.get(email))
       .filter((value): value is string => Boolean(value)),
+    ...replacementEntries.map((entry) => entry.realUserId),
   ]);
 
-  const { data: currentMembers, error: membersError } = await supabase
+  let { data: currentMembers, error: membersError } = await supabase
     .from('group_members')
     .select(`
       user_id,
       role,
       profiles!group_members_user_id_fkey (
-        email
+        email,
+        is_dummy
       )
     `)
-    .eq('group_id', groupId);
+    .eq('group_id', groupId)
+    .is('left_at', null);
+
+  if (membersError && isMissingLeftAtColumnError(membersError.message)) {
+    const fallback = await supabase
+      .from('group_members')
+      .select(`
+        user_id,
+        role,
+        profiles!group_members_user_id_fkey (
+          email,
+          is_dummy
+        )
+      `)
+      .eq('group_id', groupId);
+    currentMembers = fallback.data as typeof currentMembers;
+    membersError = fallback.error;
+  }
+
+  if (membersError && isMissingDummyColumnError(membersError.message)) {
+    const fallback = await supabase
+      .from('group_members')
+      .select(`
+        user_id,
+        role,
+        profiles!group_members_user_id_fkey (
+          email
+        )
+      `)
+      .eq('group_id', groupId);
+    currentMembers = fallback.data as typeof currentMembers;
+    membersError = fallback.error;
+  }
 
   if (membersError) {
     return buildActionResult({
@@ -131,8 +192,84 @@ export async function updateGroupAction(
     });
   }
 
+  for (const replacement of replacementEntries) {
+    const replaced = await replaceDummyGroupMember({
+      groupId,
+      dummyUserId: replacement.dummyUserId,
+      realUserId: replacement.realUserId,
+      supabase,
+    });
+    if (replaced.error) {
+      return buildActionResult({
+        success: false,
+        message: replaced.error,
+        values: rawValues,
+      });
+    }
+  }
+
+  if (replacementEntries.length > 0) {
+    const refreshed = await supabase
+      .from('group_members')
+      .select(`
+        user_id,
+        role,
+        profiles!group_members_user_id_fkey (
+          email,
+          is_dummy
+        )
+      `)
+      .eq('group_id', groupId)
+      .is('left_at', null);
+    currentMembers = refreshed.data;
+    membersError = refreshed.error;
+
+    if (membersError && isMissingLeftAtColumnError(membersError.message)) {
+      const fallback = await supabase
+        .from('group_members')
+        .select(`
+          user_id,
+          role,
+          profiles!group_members_user_id_fkey (
+            email,
+            is_dummy
+          )
+        `)
+        .eq('group_id', groupId);
+      currentMembers = fallback.data as typeof currentMembers;
+      membersError = fallback.error;
+    }
+
+    if (membersError && isMissingDummyColumnError(membersError.message)) {
+      const fallback = await supabase
+        .from('group_members')
+        .select(`
+          user_id,
+          role,
+          profiles!group_members_user_id_fkey (
+            email
+          )
+        `)
+        .eq('group_id', groupId);
+      currentMembers = fallback.data as typeof currentMembers;
+      membersError = fallback.error;
+    }
+
+    if (membersError) {
+      return buildActionResult({
+        success: false,
+        message: membersError.message,
+        values: rawValues,
+      });
+    }
+  }
+
   for (const member of currentMembers ?? []) {
     if (member.user_id === user.id) {
+      continue;
+    }
+    const profile = Array.isArray(member.profiles) ? member.profiles[0] : member.profiles;
+    if (profile?.is_dummy) {
       continue;
     }
     if (!selectedIds.has(member.user_id)) {
@@ -184,20 +321,36 @@ export async function updateGroupAction(
     }
   }
 
+  const dummyResult = await createDummyGroupMembers({
+    groupId,
+    ownerUserId: user.id,
+    dummyNames: parsedDummyNames.names,
+    supabase,
+  });
+  if (dummyResult.error) {
+    return buildActionResult({
+      success: false,
+      message: dummyResult.error,
+      values: rawValues,
+    });
+  }
+
   revalidatePath('/app');
   revalidatePath(`/app/groups/${groupId}`);
 
   const invitedCount = rows.filter((row) => row.accepted_at === null).length;
   const addedCount = rows.length - invitedCount;
+  const replacedCount = replacementEntries.length;
+  const dummyCreatedCount = dummyResult.createdCount;
   const statusMessage =
-    rows.length > 0
-      ? `Members updated: ${addedCount} added, ${invitedCount} invited.`
+    rows.length > 0 || replacedCount > 0 || dummyCreatedCount > 0
+      ? `Members updated: ${addedCount} added, ${invitedCount} invited, ${dummyCreatedCount} placeholders added, ${replacedCount} placeholders replaced.`
       : 'Group updated successfully.';
 
   return buildActionResult({
     success: true,
     message: statusMessage,
-    values: { ...rawValues, inviteEmails: '' },
+    values: { ...rawValues, inviteEmails: '', dummyMembers: '' },
     redirectTo: `/app/groups/${groupId}`,
   });
 }

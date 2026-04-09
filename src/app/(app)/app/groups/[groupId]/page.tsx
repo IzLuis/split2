@@ -9,7 +9,7 @@ import { getRequestLocale } from '@/lib/i18n/server';
 import { tx } from '@/lib/i18n/shared';
 import { deleteEventAction } from './actions';
 import { RoleBadge } from '@/components/role-badge';
-import { displayName, formatCurrency, formatDate } from '@/lib/utils';
+import { formatCurrency, formatDate, formatMemberLabel } from '@/lib/utils';
 import { LeaveGroupForm } from './leave-group-form';
 import { redirect } from 'next/navigation';
 
@@ -32,7 +32,7 @@ export default async function GroupDetailPage({
   ]);
 
   const memberMap = new Map(
-    members.map((member) => [member.user_id, displayName(member.profiles)]),
+    members.map((member) => [member.user_id, formatMemberLabel(member.profiles, locale)]),
   );
   const currentMember = members.find((member) => member.user_id === user.id);
   const canEditGroup = currentMember?.role === 'owner';
@@ -152,8 +152,13 @@ export default async function GroupDetailPage({
         <ul className="mt-3 space-y-2">
           {members.map((member) => (
             <li key={member.user_id} className="flex items-center justify-between text-sm">
-              <span>{displayName(member.profiles)}</span>
+              <span>{formatMemberLabel(member.profiles, locale)}</span>
               <div className="flex items-center gap-2">
+                {member.profiles?.is_dummy ? (
+                  <span className="inline-flex rounded-full border border-amber-300 bg-amber-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-amber-800">
+                    {tx(locale, 'Placeholder', 'Temporal')}
+                  </span>
+                ) : null}
                 <RoleBadge role={member.role} locale={locale} />
                 {member.accepted_at === null ? (
                   <span className="inline-flex rounded-full border border-amber-200 bg-amber-100 px-2 py-0.5 text-xs font-medium uppercase tracking-wide text-amber-700">

@@ -2,6 +2,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createSupabaseAdminClient } from '@/lib/supabase/admin';
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const DUMMY_EMAIL_SUFFIX = '@dummy.split2.local';
 
 function normalizeEmail(value: string) {
   return value.trim().toLowerCase();
@@ -62,7 +63,10 @@ export async function resolveMemberUserIdsByEmail(params: {
 
   const userIdByEmail = new Map<string, string>();
   for (const profile of existingProfiles ?? []) {
-    if (profile.email) {
+    if (
+      profile.email
+      && !normalizeEmail(profile.email).endsWith(DUMMY_EMAIL_SUFFIX)
+    ) {
       userIdByEmail.set(normalizeEmail(profile.email), String(profile.id));
     }
   }

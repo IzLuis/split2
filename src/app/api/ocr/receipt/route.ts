@@ -84,6 +84,47 @@ function normalizeDate(value: string | null | undefined) {
     return null;
   }
 
+  const directIsoMatch = normalized.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/);
+  if (directIsoMatch) {
+    const year = Number(directIsoMatch[1]);
+    const month = Number(directIsoMatch[2]);
+    const day = Number(directIsoMatch[3]);
+    if (
+      Number.isInteger(year)
+      && Number.isInteger(month)
+      && Number.isInteger(day)
+      && month >= 1
+      && month <= 12
+      && day >= 1
+      && day <= 31
+    ) {
+      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
+  const dayFirstMatch = normalized.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})$/);
+  if (dayFirstMatch) {
+    const day = Number(dayFirstMatch[1]);
+    const month = Number(dayFirstMatch[2]);
+    let year = Number(dayFirstMatch[3]);
+    if (year < 100) {
+      year += 2000;
+    }
+
+    // Mexico day-first default for ambiguous numeric dates.
+    if (
+      Number.isInteger(year)
+      && Number.isInteger(month)
+      && Number.isInteger(day)
+      && month >= 1
+      && month <= 12
+      && day >= 1
+      && day <= 31
+    ) {
+      return `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+    }
+  }
+
   const parsed = new Date(normalized);
   if (Number.isNaN(parsed.getTime())) {
     return null;
@@ -364,7 +405,7 @@ export async function POST(request: Request) {
             {
               type: 'input_text',
               text:
-                'You extract structured receipt data. Return JSON only with exact keys: merchant_name, date, currency, subtotal, tax_amount, tax_included, total, tip_amount, delivery_fee, raw_text, items. Each item: name, quantity, unit_price, line_total.',
+                'You extract structured receipt data. Return JSON only with exact keys: merchant_name, date, currency, subtotal, tax_amount, tax_included, total, tip_amount, delivery_fee, raw_text, items. Each item: name, quantity, unit_price, line_total. Prefer date format DD/MM/YYYY when the receipt date is numeric.',
             },
           ],
         },
@@ -374,7 +415,7 @@ export async function POST(request: Request) {
             {
               type: 'input_text',
               text:
-                'Parse this receipt image. Infer quantities and line totals carefully. Keep numbers as decimals in major currency units (e.g., 12.50). If the receipt says IVA/Tax is included (like "IVA incluido"), set tax_included=true and do not treat it as an extra fee.',
+                'Parse this receipt image. Infer quantities and line totals carefully. Keep numbers as decimals in major currency units (e.g., 12.50). If the receipt says IVA/Tax is included (like "IVA incluido"), set tax_included=true and do not treat it as an extra fee. For ambiguous numeric dates, interpret them day-first (DD/MM/YYYY).',
             },
             {
               type: 'input_image',
