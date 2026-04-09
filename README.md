@@ -106,6 +106,7 @@ Create `.env.local`:
 ```bash
 NEXT_PUBLIC_SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_SUPABASE_ANON_KEY=your_supabase_anon_key
+SUPABASE_URL=your_supabase_project_url
 NEXT_PUBLIC_APP_URL=https://your-app-domain.com
 SUPABASE_SERVICE_ROLE_KEY=your_supabase_service_role_key
 OPENAI_API_KEY=your_openai_api_key
@@ -117,6 +118,7 @@ OPENAI_OCR_DAILY_LIMIT=30
 (Template file is included as `.env.example`.)
 
 `NEXT_PUBLIC_APP_URL` is used for auth confirmation and invite email redirects so links open your deployed domain instead of localhost.
+`SUPABASE_SERVICE_ROLE_KEY` is required for server-side admin flows (invites and placeholder members). Keep it server-only.
 
 ## Local Setup
 1. Install deps:

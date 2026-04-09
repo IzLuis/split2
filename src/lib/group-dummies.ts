@@ -50,8 +50,16 @@ export async function createDummyGroupMembers(params: {
   try {
     admin = createSupabaseAdminClient();
   } catch (error) {
+    const message = error instanceof Error ? error.message : 'Could not initialize admin client for dummy members.';
+    if (message.includes('SUPABASE_SERVICE_ROLE_KEY')) {
+      return {
+        error:
+          'Placeholder members require server env vars: set SUPABASE_SERVICE_ROLE_KEY and SUPABASE_URL (or NEXT_PUBLIC_SUPABASE_URL), then redeploy.',
+        createdCount: 0,
+      };
+    }
     return {
-      error: error instanceof Error ? error.message : 'Could not initialize admin client for dummy members.',
+      error: message,
       createdCount: 0,
     };
   }
