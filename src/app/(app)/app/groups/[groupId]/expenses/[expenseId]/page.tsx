@@ -198,6 +198,46 @@ export default async function ExpenseDetailPage({
   const showGlobalEqualRoundingNote = isGlobalEqualItemizedSplit
     && unassignedForStatus === 0
     && roundingDeltaFromParticipants > 0;
+  const getParticipantItemizedLines = (participantUserId: string) => {
+    return items.flatMap((item) => {
+      const claimantIds = [...new Set(claimersByItemId.get(item.id) ?? [])].sort();
+      if (!claimantIds.includes(participantUserId)) {
+        return [];
+      }
+
+      if (!item.is_shared) {
+        return [{
+          itemId: item.id,
+          name: item.name,
+          notes: item.notes,
+          quantity: item.quantity,
+          isShared: false,
+          claimantCount: 1,
+          amountCents: item.line_total_cents,
+        }];
+      }
+
+      const count = claimantIds.length;
+      if (count <= 0) {
+        return [];
+      }
+
+      const baseShare = Math.floor(item.line_total_cents / count);
+      const remainder = item.line_total_cents - (baseShare * count);
+      const index = claimantIds.indexOf(participantUserId);
+      const amountCents = baseShare + (index >= 0 && index < remainder ? 1 : 0);
+
+      return [{
+        itemId: item.id,
+        name: item.name,
+        notes: item.notes,
+        quantity: item.quantity,
+        isShared: true,
+        claimantCount: count,
+        amountCents,
+      }];
+    });
+  };
 
   return (
     <div className="mx-auto w-full max-w-2xl space-y-5">
@@ -408,22 +448,122 @@ export default async function ExpenseDetailPage({
                 base_share_amount_cents: number;
                 share_amount_cents: number;
                 share_percentage: number | null;
-              }) => (
-                <li key={participant.user_id} className="rounded-md border border-slate-200 p-3 text-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="font-medium text-slate-900">{memberMap.get(participant.user_id) || tx(locale, 'Unknown', 'Desconocido')}</p>
-                      <p className="text-slate-600">
-                        {participantShareDetail(participant)}
-                        {participant.share_percentage !== null ? ` (${participant.share_percentage}%)` : ''}
-                      </p>
-                    </div>
-                    <p className="text-right text-sm font-semibold text-slate-900">
-                      {formatCurrency(participant.share_amount_cents, expense.currency)}
-                    </p>
-                  </div>
-                </li>
-              ),
+              }) => {
+                const participantLines = expense.is_itemized
+                  ? getParticipantItemizedLines(participant.user_id)
+                  : [];
+                const participantItemsSubtotal = participantLines.reduce(
+                  (sum, line) => sum + line.amountCents,
+                  0,
+                );
+                const baseAdjustment = expense.is_itemized
+                  ? (participant.base_share_amount_cents - participantItemsSubtotal)
+                  : 0;
+                const tipAndFeeAllocation = participant.share_amount_cents - participant.base_share_amount_cents;
+                const hasDetailBreakdown = expense.is_itemized && participantLines.length > 0;
+
+                return (
+                  <li key={participant.user_id} className="rounded-md border border-slate-200 p-3 text-sm">
+                    {hasDetailBreakdown ? (
+                      <details>
+                        <summary className="flex cursor-pointer list-none items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium text-slate-900">
+                              {memberMap.get(participant.user_id) || tx(locale, 'Unknown', 'Desconocido')}
+                            </p>
+                            <p className="text-slate-600">
+                              {participantShareDetail(participant)}
+                              {participant.share_percentage !== null ? ` (${participant.share_percentage}%)` : ''}
+                            </p>
+                            <p className="mt-1 text-xs text-slate-500">
+                              {tx(
+                                locale,
+                                'Tap to view assigned items',
+                                'Toca para ver artículos asignados',
+                              )}
+                            </p>
+                          </div>
+                          <p className="text-right text-sm font-semibold text-slate-900">
+                            {formatCurrency(participant.share_amount_cents, expense.currency)}
+                          </p>
+                        </summary>
+
+                        <div className="mt-3 space-y-2 border-t border-slate-200 pt-3">
+                          <p className="text-xs font-medium uppercase tracking-wide text-slate-500">
+                            {tx(locale, 'Personal receipt', 'Recibo personal')}
+                          </p>
+                          <ul className="space-y-2">
+                            {participantLines.map((line) => (
+                              <li key={`${participant.user_id}-${line.itemId}`} className="flex items-start justify-between gap-3">
+                                <div>
+                                  <p className="text-sm font-medium text-slate-900">{line.name}</p>
+                                  <p className="text-xs text-slate-500">
+                                    {line.isShared
+                                      ? tx(
+                                        locale,
+                                        `Shared by ${line.claimantCount}`,
+                                        `Compartido entre ${line.claimantCount}`,
+                                      )
+                                      : tx(locale, 'Individual item', 'Artículo individual')}
+                                    {' • '}
+                                    {tx(locale, `Qty ${line.quantity}`, `Cant ${line.quantity}`)}
+                                  </p>
+                                  {line.notes ? (
+                                    <p className="text-xs text-slate-500">{line.notes}</p>
+                                  ) : null}
+                                </div>
+                                <p className="text-sm font-medium text-slate-900">
+                                  {formatCurrency(line.amountCents, expense.currency)}
+                                </p>
+                              </li>
+                            ))}
+                          </ul>
+
+                          {baseAdjustment !== 0 ? (
+                            <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-xs text-slate-600">
+                              <span>
+                                {tx(locale, 'Itemized adjustment', 'Ajuste de itemización')}
+                              </span>
+                              <span>{formatCurrency(baseAdjustment, expense.currency)}</span>
+                            </div>
+                          ) : null}
+
+                          {tipAndFeeAllocation > 0 ? (
+                            <div className="flex items-center justify-between text-xs text-slate-600">
+                              <span>
+                                {hasTip && hasDeliveryFee
+                                  ? tx(locale, 'Tip + delivery allocation', 'Asignación de propina + envío')
+                                  : hasTip
+                                    ? tx(locale, 'Tip allocation', 'Asignación de propina')
+                                    : tx(locale, 'Delivery allocation', 'Asignación de envío')}
+                              </span>
+                              <span>{formatCurrency(tipAndFeeAllocation, expense.currency)}</span>
+                            </div>
+                          ) : null}
+
+                          <div className="flex items-center justify-between border-t border-slate-200 pt-2 text-sm font-semibold text-slate-900">
+                            <span>{tx(locale, 'Participant total', 'Total del participante')}</span>
+                            <span>{formatCurrency(participant.share_amount_cents, expense.currency)}</span>
+                          </div>
+                        </div>
+                      </details>
+                    ) : (
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <p className="font-medium text-slate-900">{memberMap.get(participant.user_id) || tx(locale, 'Unknown', 'Desconocido')}</p>
+                          <p className="text-slate-600">
+                            {participantShareDetail(participant)}
+                            {participant.share_percentage !== null ? ` (${participant.share_percentage}%)` : ''}
+                          </p>
+                        </div>
+                        <p className="text-right text-sm font-semibold text-slate-900">
+                          {formatCurrency(participant.share_amount_cents, expense.currency)}
+                        </p>
+                      </div>
+                    )}
+                  </li>
+                );
+              },
             )}
           </ul>
         )}
