@@ -29,6 +29,9 @@ src/
       app/
         page.tsx
         actions.ts
+        admin/
+          stats/
+            page.tsx
         groups/
           new/
             actions.ts
@@ -57,6 +60,7 @@ src/
     expense-events.ts
     group-invitations.ts
     group-data.ts
+    stats.ts
     utils.ts
     validation.ts
     types.ts
@@ -180,6 +184,13 @@ npm run build -- --webpack
 - Settlements: record payments that offset balances without mutating expenses.
 - Toast notifications (Sonner): success/error feedback for group/expense/settlement writes.
 - Typed Server Action responses for writes: `{ success, message, ... }` used by client to trigger toasts.
+- Profile stats:
+  - personal metrics in `/app/profile` (active groups, expense patterns, paid/share/net totals by currency, OCR usage, biggest expense)
+  - quick “fun” behavior hints (favorite split style, itemized usage ratio)
+- Admin-only global stats:
+  - `/app/admin/stats` is visible only for user `IzLuis`
+  - app-wide totals (users, groups, expenses, settlements, OCR scans, pending invites/friend requests)
+  - top spenders and busiest groups snapshots
 - Invite flow:
   - group member add forms support direct email invites
   - if email does not exist, the app creates a placeholder profile and sends Supabase invite email

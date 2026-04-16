@@ -2,12 +2,14 @@ import Link from 'next/link';
 import { ensureProfileAndClient } from '@/lib/auth';
 import { getRequestLocale } from '@/lib/i18n/server';
 import { tx } from '@/lib/i18n/shared';
+import { isIzLuisAdmin } from '@/lib/stats';
 import { signOutAction } from './app/actions';
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, supabase } = await ensureProfileAndClient();
   const locale = await getRequestLocale();
   let incomingFriendRequests = 0;
+  let showAdminStats = false;
 
   const pendingIncoming = await supabase
     .from('friend_requests')
@@ -17,6 +19,20 @@ export default async function AppLayout({ children }: { children: React.ReactNod
 
   if (!pendingIncoming.error) {
     incomingFriendRequests = pendingIncoming.count ?? 0;
+  }
+
+  const profileResult = await supabase
+    .from('profiles')
+    .select('username, full_name, email')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!profileResult.error) {
+    showAdminStats = isIzLuisAdmin({
+      username: profileResult.data?.username,
+      full_name: profileResult.data?.full_name,
+      email: profileResult.data?.email ?? user.email ?? null,
+    });
   }
 
   return (
@@ -45,6 +61,14 @@ export default async function AppLayout({ children }: { children: React.ReactNod
             >
               {tx(locale, 'Profile', 'Perfil')}
             </Link>
+            {showAdminStats ? (
+              <Link
+                href="/app/admin/stats"
+                className="rounded-md border border-slate-300 px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-100"
+              >
+                {tx(locale, 'Admin stats', 'Estadísticas admin')}
+              </Link>
+            ) : null}
             <form action={signOutAction}>
               <button
                 type="submit"
