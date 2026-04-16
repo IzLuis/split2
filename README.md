@@ -189,6 +189,7 @@ npm run build -- --webpack
   - quick “fun” behavior hints (favorite split style, itemized usage ratio)
 - Admin-only global stats:
   - `/app/admin/stats` is visible only for user `IzLuis`
+  - access is exposed from `Perfil` stats dashboard (not from top header navigation)
   - app-wide totals (users, groups, expenses, settlements, OCR scans, pending invites/friend requests)
   - top spenders and busiest groups snapshots
 - Invite flow:
